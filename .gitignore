@@ -1,0 +1,29 @@
+# GADM Data Files (too large for Git)
+data/gadm/*.gpkg
+data/gadm/*.geojson
+data/gadm/*.mbtiles
+data/gadm/*.geojsonl
+
+# Keep optimized folder structure but ignore large files
+!data/gadm/optimized/.gitkeep
+
+# Node modules
+node_modules/
+npm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.temp

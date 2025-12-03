@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>地圖下載小工具｜ⒸMapbox&OpenStreetMap</title>
+    <meta charset='utf-8' />
+    <meta name='viewport' content='width=device-width, initial-scale=1' />
+    <script src='https://api.mapbox.com/mapbox-gl-js/v3.2.0/mapbox-gl.js'></script>
+    <link href='https://api.mapbox.com/mapbox-gl-js/v3.2.0/mapbox-gl.css' rel='stylesheet' />
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <div class="flex">
+        <div style="margin:0px 0 5px 0">
+            <span style="font-size:30px;font-weight:black;font-family:'Noto Sans TC', sans-serif;">地圖下載小工具 <span id="map-type-subtitle" style="font-size:20px;color:gray;">縣市界版（適合台灣小區域） v20240607</span></span>
+        </div>
+        <div style="font-family:'Noto Sans TC', sans-serif;">
+            <a href="#" id="map-type-country">國界版</a>｜
+            <a href="#" id="map-type-state">省州界版</a>｜
+            <a href="#" id="map-type-county">縣市界版</a>｜
+            <a href="#" id="map-type-world">小地圖用</a>
+        </div>
+        <div style="margin:10px 0 10px 0">
+            輸入座標後按enter或點擊文字框外：<input type="text" id="coordinates" placeholder="格式為「緯度,經度」小數點，可在Google Maps上按右鍵選第一個" style="width:450px" />
+        </div>
+        <div style="margin:0px 0 0px 0">
+            國家領土色塊➤
+            <input list="countries" id='country-select' class='country-select'>
+            <datalist id='countries'>
+                <!-- Populated by JavaScript -->
+            </datalist>
+            <button type="button" id="inputclear" onclick="clearCountryInput()" style="margin:0 5px 0 0">清空國家重選</button>
+            色塊顏色➤
+            <input type="radio" id="color1" name="colorselect" value="#004e98" checked />
+            <label for="color1">藍</label>
+            <input type="radio" id="color2" name="colorselect" value="#980000" />
+            <label for="color2">紅</label>
+            <input type="radio" id="color3" name="colorselect" value="#FF6B00" />
+            <label for="color3">橙</label>
+            <input type="radio" id="color4" name="colorselect" value="#000000" />
+            <label for="color4">深灰</label>
+            <input type="radio" id="color5" name="colorselect" value="#777777" />
+            <label for="color5">淺灰</label>
+        </div>
+        <div style="margin:0px 0 10px 0">
+            <button class="button" id='clear-button'>清除地圖色塊</button>
+            <button class="button" id='clear-marker' onclick="clearMarker()">清除地圖座標點</button>
+            <button class="button" onclick="refreshBoundariesData()" title="更新到最新邊界資料 / Refresh to latest boundaries">更新資料<span class="material-icons" style="font-size:10pt;">refresh</span></button>
+            <button class="button" onclick="captureMap()">下載圖檔<span class="material-icons" style="font-size:10pt;">download</span></button>
+            <button class="button" onclick="window.open('https://www.google.com.tw/maps?hl=zh-TW&tab=wl','_blank')">Google Maps<span class="material-icons" style="font-size:10pt;">open_in_new</span></button>
+            <button class="button" onclick="window.open('https://drive.google.com/drive/folders/1oOm0NlYMC-OqlbwNhzf4h0jtTu5GrAGt','_blank')">Google雲端硬碟圖表區<span class="material-icons" style="font-size:10pt;">open_in_new</span></button>
+        </div>
+        <div id='map'></div>
+    </div>
+
+    <!-- Configuration -->
+    <script src="config.js"></script>
+    
+    <!-- Country Codes -->
+    <script src="js/utils/country-codes.js"></script>
+    
+    <!-- Main Application -->
+    <script src="js/app.js"></script>
+</body>
+</html>
