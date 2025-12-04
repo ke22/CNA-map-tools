@@ -348,22 +348,36 @@ const CONFIG = {
    * Get your API key from: https://makersuite.google.com/app/apikey
    */
   GEMINI: {
-    // Your Gemini API key (get from Google AI Studio)
-    // IMPORTANT: For MVP, this will be in frontend (temporary)
-    // For production, move to backend environment variables
-    API_KEY: 'AIzaSyCndAts3vwZ_OayaWbDDstzEjXtjJupulk', // Replace with your actual key
+    // ============================================================
+    // Production Mode: Backend Proxy (Recommended)
+    // ============================================================
+    // For production, use backend proxy to keep API key secure
+    // API key will be stored in server environment variables
     
-    // Model name
-    MODEL: 'gemini-pro',
+    // Use backend proxy? (true = production, false = development with direct API)
+    USE_BACKEND_PROXY: true, // Set to false for direct API calls (requires API_KEY below)
     
-    // API base URL
+    // Backend proxy endpoint (relative path)
+    PROXY_ENDPOINT: '/api/gemini/generateContent',
+    
+    // ============================================================
+    // Development Mode: Direct API (Optional)
+    // ============================================================
+    // Only needed if USE_BACKEND_PROXY = false
+    // Get your Gemini API key from: https://aistudio.google.com/app/apikey
+    API_KEY: 'YOUR_GEMINI_API_KEY_HERE', // Only used if USE_BACKEND_PROXY = false
+    
+    // Model name (use gemini-2.0-flash, gemini-1.5-pro-latest, or specific versions)
+    MODEL: 'gemini-2.0-flash', // Fast model for quick responses
+    
+    // API base URL (v1beta for latest features, v1 for stable)
     BASE_URL: 'https://generativelanguage.googleapis.com/v1beta',
     
     // Request timeout (milliseconds)
     TIMEOUT: 30000,
     
     // Enable/disable AI features
-    ENABLED: false, // Set to true after adding API key
+    ENABLED: true, // GenAI feature enabled
   },
 
   /**
