@@ -27,3 +27,16 @@ Thumbs.db
 # Temporary files
 *.tmp
 *.temp
+
+# Environment variables and secrets
+.env
+.env.local
+.env.*.local
+*.key
+*.pem
+secrets/
+*.secret
+
+# API keys (if accidentally added)
+*api*key*.txt
+*secret*.txt

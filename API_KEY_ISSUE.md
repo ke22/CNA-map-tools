@@ -70,7 +70,9 @@ GEMINI: {
 文件：`config.js`（第 354 行）
 
 ```javascript
-API_KEY: 'AIzaSyCndAts3vwZ_OayaWbDDstzEjXtjJupulk', // 需要替换
+API_KEY: 'YOUR_GEMINI_API_KEY_HERE', // 替换为新的 API 密钥
 ```
+
+⚠️ **重要**：当前推荐使用后端代理模式（`USE_BACKEND_PROXY: true`），API 密钥存储在服务器环境变量中，更安全。
 
 替换为新的 API 密钥后即可正常使用。
