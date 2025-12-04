@@ -226,32 +226,32 @@
                     <div class="control-group">
                         <div class="control-label">Paste News Text</div>
                         <textarea id="news-input" class="textarea-input" 
-                                  placeholder="Paste news article text here...&#10;&#10;Example:&#10;Taipei officials announced new policies today. The event took place in central Taipei at coordinates 25.0330, 121.5654..."
+                                  placeholder="请粘贴新闻文章内容...&#10;&#10;示例：&#10;台北市政府今天宣布新政策。活动在台北市中心举行，坐标 25.0330, 121.5654..."
                                   rows="6" style="width: 100%; font-size: 13px; line-height: 1.5;"></textarea>
                         <button class="btn-primary" id="analyze-news-btn" style="width: 100%; margin-top: 8px;">
                             <span class="material-icons" style="font-size: 18px; vertical-align: middle;">auto_awesome</span>
-                            Analyze with AI
+                            AI 分析新闻
                         </button>
                         <div id="ai-loading" style="display: none; text-align: center; padding: 12px; color: #757575;">
                             <span class="material-icons" style="animation: spin 1s linear infinite;">refresh</span>
-                            Analyzing news text...
+                            正在分析新闻文本...
                         </div>
                     </div>
                     
                     <!-- AI Results Preview -->
                     <div id="ai-results-preview" class="control-group" style="display: none;">
-                        <div class="control-label">Extracted Locations</div>
-                        <div id="ai-results-content" style="background: #f5f5f5; border-radius: 4px; padding: 12px; max-height: 300px; overflow-y: auto;">
+                        <div class="control-label">提取结果预览</div>
+                        <div id="ai-results-content" style="background: #f5f5f5; border-radius: 4px; padding: 12px; max-height: 400px; overflow-y: auto;">
                             <!-- Results will be populated here -->
                         </div>
                         <div style="display: flex; gap: 8px; margin-top: 8px;">
                             <button class="btn-primary" id="apply-ai-results-btn" style="flex: 1;">
                                 <span class="material-icons" style="font-size: 18px; vertical-align: middle;">check</span>
-                                Apply to Map
+                                应用到地图
                             </button>
                             <button class="btn-secondary" id="discard-ai-results-btn" style="flex: 1;">
                                 <span class="material-icons" style="font-size: 18px; vertical-align: middle;">close</span>
-                                Discard
+                                取消
                             </button>
                         </div>
                     </div>
@@ -507,7 +507,7 @@
     <!-- AI Assistant utilities -->
     <script src="js/utils/ai-helpers.js"></script>
     <script src="js/utils/location-resolver.js"></script>
-    <script src="js/services/gemini-service.js"></script>
+    <script src="js/services/gemini-service.js?v=5"></script>
     
     <!-- Country-specific Data Loader (for state/city boundaries - smaller files) -->
     <script src="js/app-country-loader.js"></script>

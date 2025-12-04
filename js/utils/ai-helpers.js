@@ -32,7 +32,16 @@ function validateAIResults(aiResult) {
         reason: area.reason || ''
     })).filter(area => area.name); // Remove entries without name
 
-    return { locations, areas };
+    // Extract map design suggestions if available
+    const mapDesign = aiResult.mapDesign ? {
+        suggestedStyle: aiResult.mapDesign.suggestedStyle || 'standard',
+        suggestedZoom: aiResult.mapDesign.suggestedZoom || null,
+        suggestedCenter: aiResult.mapDesign.suggestedCenter || null,
+        title: aiResult.mapDesign.title || '',
+        description: aiResult.mapDesign.description || ''
+    } : null;
+
+    return { locations, areas, mapDesign };
 }
 
 /**
