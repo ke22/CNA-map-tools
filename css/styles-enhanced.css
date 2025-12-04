@@ -413,6 +413,63 @@ body {
     box-shadow: 0 0 0 2px rgba(0, 78, 152, 0.1);
 }
 
+.textarea-input {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--divider);
+    border-radius: 4px;
+    font-size: 13px;
+    font-family: inherit;
+    resize: vertical;
+    transition: border-color 0.2s;
+    background-color: var(--surface);
+    color: var(--text-primary);
+}
+
+.textarea-input:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 2px rgba(0, 78, 152, 0.1);
+}
+
+.textarea-input::placeholder {
+    color: var(--text-secondary);
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+.textarea-input {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--divider);
+    border-radius: 4px;
+    font-size: 13px;
+    font-family: inherit;
+    resize: vertical;
+    transition: border-color 0.2s;
+    background-color: var(--surface);
+    color: var(--text-primary);
+    line-height: 1.5;
+}
+
+.textarea-input:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 2px rgba(0, 78, 152, 0.1);
+}
+
+.textarea-input::placeholder {
+    color: var(--text-secondary);
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
 .search-results {
     margin-top: 8px;
     max-height: 200px;
@@ -514,6 +571,21 @@ body {
     z-index: 1000;
     padding: 24px;
     min-width: 280px;
+}
+
+.marker-icon-picker-popup,
+.marker-color-picker-on-add-popup {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background-color: var(--surface);
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+    z-index: 10000;
+    padding: 24px;
+    min-width: 300px;
+    max-width: 400px;
 }
 
 .popup-content {
@@ -965,3 +1037,67 @@ body {
     }
 }
 
+
+/* Marker Icon Selector */
+.marker-icon-selector {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    padding: 8px;
+    background-color: var(--surface);
+    border: 1px solid var(--divider);
+    border-radius: 4px;
+    min-height: 60px;
+}
+
+.marker-icon-btn {
+    width: 36px;
+    height: 36px;
+    border: 2px solid transparent;
+    border-radius: 4px;
+    background: #f5f5f5;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    padding: 0;
+    position: relative;
+}
+
+.marker-icon-btn:hover {
+    background-color: #e0e0e0;
+    transform: scale(1.1);
+}
+
+.marker-icon-btn.selected {
+    border-color: #2196F3 !important;
+    background-color: #E3F2FD !important;
+    box-shadow: 0 2px 4px rgba(33, 150, 243, 0.3);
+}
+
+.marker-icon-btn .custom-marker {
+    transform: scale(0.5);
+    pointer-events: none;
+}
+
+/* Apple-style Marker Styles - Ensure accurate positioning */
+.apple-marker {
+    position: relative !important;
+    display: block !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-sizing: border-box !important;
+    pointer-events: auto !important;
+    /* Prevent any interference with Mapbox positioning */
+    transform-origin: center center !important;
+    will-change: transform;
+    /* Ensure transform can be applied dynamically */
+    transition: transform 0.2s ease;
+}
+
+/* Custom Marker Styles */
+.custom-marker {
+    cursor: pointer;
+    user-select: none;
+}

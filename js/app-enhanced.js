@@ -9,7 +9,9 @@
 
 // Initialize when DOM is ready
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('🚀 DOM Content Loaded');
+    // Use Logger if available, fallback to console.log
+    const log = (typeof Logger !== 'undefined') ? Logger.info : console.log;
+    log('DOM Content Loaded');
     
     // Validate Mapbox token
     if (!CONFIG.MAPBOX.TOKEN || CONFIG.MAPBOX.TOKEN === 'YOUR_MAPBOX_ACCESS_TOKEN') {
@@ -21,14 +23,15 @@ document.addEventListener('DOMContentLoaded', function() {
     mapboxgl.accessToken = CONFIG.MAPBOX.TOKEN;
 
     // Initialize application
-    console.log('🚀 Initializing app...');
+    log('Initializing app...');
     initializeApp();
     
     // Also try binding events after a short delay as backup
     setTimeout(function() {
-        console.log('🔧 Backup: Re-checking button setup...');
+        const debugLog = (typeof Logger !== 'undefined') ? Logger.debug : console.log;
+        debugLog('Backup: Re-checking button setup...');
         const buttons = document.querySelectorAll('.btn-toggle[data-type]');
-        console.log(`   Found ${buttons.length} buttons`);
+        debugLog(`Found ${buttons.length} buttons`);
         
         // Re-setup buttons if needed
         if (buttons.length > 0) {
@@ -58,7 +61,15 @@ const appState = {
     // Overlay mode settings (for country + admin area overlay)
     overlayMode: false,           // Whether admin areas overlay on country
     countryLayerIds: [],          // Track country color layers
-    adminLayerIds: []             // Track admin area overlay layers
+    adminLayerIds: [],            // Track admin area overlay layers
+    // Markers management
+    markers: [],                   // Array of { id, name, coordinates: [lng, lat], marker: MapboxMarker, color: string, shape: string }
+    currentMarkerColor: '#007AFF', // Current selected marker color (Apple blue)
+    currentMarkerShape: 'pin',     // Current selected marker shape
+    editingMarkerId: null,         // ID of marker currently being edited
+    showColorPickerOnAdd: false,   // Show color picker popup when adding new markers (false = use sidebar default)
+    pendingMarkerData: null,       // Temporary storage for marker data while color is being selected
+    markerMode: false              // When true, clicking map always adds marker (even if boundary detected)
 };
 
 // Initialize Application
@@ -112,6 +123,12 @@ function initializeMap() {
     // Handle map clicks for area selection
     // Handle map clicks - with improved detection
     appState.map.on('click', handleMapClick);
+    
+    // Handle zoom events to scale markers proportionally
+    appState.map.on('zoom', updateMarkersScale);
+    appState.map.on('zoomend', updateMarkersScale);
+    
+    // TODO: Re-enable after fixing position accuracy with scaling
     
     // Also add mousedown for better click detection
     appState.map.on('mousedown', function(e) {
@@ -457,6 +474,12 @@ function discoverSourceLayers(sourceId, type) {
 function handleMapClick(e) {
     console.log('🖱️ Map clicked at:', e.point);
     
+    // Marker Mode: Always add marker when enabled
+    if (appState.markerMode) {
+        addMarkerAtLocation(e);
+        return;
+    }
+    
     // Try to detect what was clicked (try all levels)
     const detected = detectClickedBoundary(e.point);
     
@@ -521,7 +544,9 @@ function handleMapClick(e) {
         
         hideClickInstructions();
     } else {
-        console.log('❌ No boundary detected at click location. Try clicking directly on boundary lines.');
+        // No boundary detected - add marker at click location
+        console.log('📍 No boundary detected - adding marker at click location');
+        addMarkerAtLocation(e);
     }
 }
 
@@ -2006,27 +2031,55 @@ function setupColorPresets(presets, colorPicker) {
  * Setup Search
  */
 function setupSearch() {
-    const searchInput = document.getElementById('area-search');
-    const resultsContainer = document.getElementById('search-results');
+    // Use ElementCache if available, fallback to document.getElementById
+    const getElement = (typeof ElementCache !== 'undefined') 
+        ? (id) => ElementCache.get(id)
+        : document.getElementById.bind(document);
     
-    searchInput.addEventListener('input', function() {
-        const query = this.value.trim();
-        if (query.length >= 2) {
-            performSearch(query);
-        } else {
-            resultsContainer.style.display = 'none';
-        }
-    });
+    const searchInput = getElement('area-search');
+    const resultsContainer = getElement('search-results');
+    
+    if (!searchInput || !resultsContainer) return;
+    
+    // Use debounce utility if available
+    if (typeof debounce !== 'undefined') {
+        const debouncedPerformSearch = debounce(function() {
+            const query = searchInput.value.trim();
+            if (query.length >= 2) {
+                performSearch(query);
+            } else {
+                resultsContainer.style.display = 'none';
+            }
+        }, 300);
+        
+        searchInput.addEventListener('input', debouncedPerformSearch);
+    } else {
+        // Fallback to original implementation
+        let searchTimeout = null;
+        searchInput.addEventListener('input', function() {
+            clearTimeout(searchTimeout);
+            const query = this.value.trim();
+            if (query.length >= 2) {
+                searchTimeout = setTimeout(() => performSearch(query), 300);
+            } else {
+                resultsContainer.style.display = 'none';
+            }
+        });
+    }
 }
 
 /**
  * Perform Search
  */
-let searchTimeout = null;
 function performSearch(query) {
-    clearTimeout(searchTimeout);
+    // Use ElementCache if available
+    const getElement = (typeof ElementCache !== 'undefined') 
+        ? (id) => ElementCache.get(id)
+        : document.getElementById.bind(document);
     
-    const resultsContainer = document.getElementById('search-results');
+    const resultsContainer = getElement('search-results');
+    if (!resultsContainer) return;
+    
     resultsContainer.innerHTML = '';
     
     if (query.length < 2) {
@@ -2034,10 +2087,8 @@ function performSearch(query) {
         return;
     }
     
-    // Debounce search
-    searchTimeout = setTimeout(() => {
-        searchAreas(query, resultsContainer);
-    }, 300);
+    // Search will be executed immediately (debounced in setupSearch)
+    searchAreas(query, resultsContainer);
 }
 
 /**
@@ -2870,6 +2921,9 @@ function setupEventListeners() {
             switchBoundaryMode(mode);
         });
     });
+    
+    // Setup markers functionality
+    setupMarkers();
 }
 
 /**
@@ -3108,6 +3162,1808 @@ style.textContent = `
 `;
 document.head.appendChild(style);
 
+/**
+ * Parse coordinate string and return {lng, lat}
+ * Automatically detects format: "lat,lng" or "lng,lat"
+ */
+function parseCoordinates(coordString) {
+    if (!coordString || typeof coordString !== 'string') {
+        return null;
+    }
+    
+    // Clean up the string
+    const cleaned = coordString.trim().replace(/\s+/g, '');
+    
+    // Split by comma
+    const parts = cleaned.split(',');
+    if (parts.length !== 2) {
+        return null;
+    }
+    
+    const num1 = parseFloat(parts[0]);
+    const num2 = parseFloat(parts[1]);
+    
+    if (isNaN(num1) || isNaN(num2)) {
+        return null;
+    }
+    
+    // Auto-detect format based on value ranges
+    // Latitude is always between -90 and 90
+    // Longitude is always between -180 and 180
+    let lat, lng;
+    
+    if (num1 >= -90 && num1 <= 90 && (num2 < -90 || num2 > 90)) {
+        // num1 is latitude (in range), num2 is longitude (out of range)
+        lat = num1;
+        lng = num2;
+    } else if (num2 >= -90 && num2 <= 90 && (num1 < -90 || num1 > 90)) {
+        // num2 is latitude (in range), num1 is longitude (out of range)
+        lng = num1;
+        lat = num2;
+    } else if (num1 >= -90 && num1 <= 90 && num2 >= -180 && num2 <= 180) {
+        // Both in valid ranges, assume lat,lng format (most common)
+        lat = num1;
+        lng = num2;
+    } else if (num2 >= -90 && num2 <= 90 && num1 >= -180 && num1 <= 180) {
+        // Both in valid ranges, assume lng,lat format
+        lng = num1;
+        lat = num2;
+    } else {
+        // Default: assume lat,lng (more common format)
+        lat = num1;
+        lng = num2;
+    }
+    
+    return { lng: lng, lat: lat };
+}
+
+/**
+ * Parse and fill coordinates into input fields, then auto-add marker
+ */
+function parseAndFillCoordinates(coordString) {
+    const parsed = parseCoordinates(coordString);
+    
+    if (!parsed) {
+        showToast('Invalid coordinate format. Use: lat,lng or lng,lat', 'error');
+        return;
+    }
+    
+    // Fill individual input fields
+    const lngInput = document.getElementById('marker-lng-input');
+    const latInput = document.getElementById('marker-lat-input');
+    
+    if (lngInput) lngInput.value = parsed.lng;
+    if (latInput) latInput.value = parsed.lat;
+    
+    // Auto-add marker after a short delay
+    setTimeout(() => {
+        const name = `Marker (${parsed.lat.toFixed(4)}, ${parsed.lng.toFixed(4)})`;
+        addMarker([parsed.lng, parsed.lat], name);
+        
+        // Clear the paste input
+        const coordPaste = document.getElementById('marker-coord-paste');
+        if (coordPaste) coordPaste.value = '';
+        
+        // Clear individual inputs
+        if (lngInput) lngInput.value = '';
+        if (latInput) latInput.value = '';
+    }, 300);
+}
+
+/**
+ * Check if input looks like coordinates
+ */
+function looksLikeCoordinates(input) {
+    if (!input || typeof input !== 'string') return false;
+    
+    const cleaned = input.trim().replace(/\s+/g, '');
+    
+    // Must contain a comma to be coordinates
+    if (!cleaned.includes(',')) return false;
+    
+    const parts = cleaned.split(',');
+    if (parts.length !== 2) return false;
+    
+    const num1 = parseFloat(parts[0]);
+    const num2 = parseFloat(parts[1]);
+    
+    // Both parts must be valid numbers
+    if (isNaN(num1) || isNaN(num2)) return false;
+    
+    // At least one number should be in valid coordinate range
+    // Latitude: -90 to 90, Longitude: -180 to 180
+    const hasLatRange = (num1 >= -90 && num1 <= 90) || (num2 >= -90 && num2 <= 90);
+    const hasLngRange = (num1 >= -180 && num1 <= 180) || (num2 >= -180 && num2 <= 180);
+    
+    // Both should be in valid ranges to be considered coordinates
+    return hasLatRange && hasLngRange;
+}
+
+/**
+ * Setup Marker Icon Selector - Apple Style with Color Selection
+ */
+function setupMarkerIconSelector() {
+    const selectorContainer = document.getElementById('marker-icon-selector');
+    if (!selectorContainer) return;
+    
+    // Check if Apple colors are available
+    if (typeof APPLE_COLORS === 'undefined' || !APPLE_COLORS) {
+        selectorContainer.style.display = 'none';
+        return;
+    }
+    
+    selectorContainer.innerHTML = '';
+    selectorContainer.style.cssText = 'display: flex; gap: 8px; flex-wrap: wrap;';
+    
+    // Create color buttons using Apple color palette
+    const colors = Object.keys(APPLE_COLORS);
+    colors.forEach(colorKey => {
+        const colorBtn = document.createElement('button');
+        colorBtn.className = 'marker-color-btn';
+        colorBtn.dataset.color = colorKey;
+        colorBtn.dataset.colorValue = APPLE_COLORS[colorKey];
+        colorBtn.style.cssText = `
+            width: 36px;
+            height: 36px;
+            border: 2px solid transparent;
+            border-radius: 6px;
+            background: ${APPLE_COLORS[colorKey]};
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        `;
+        colorBtn.title = colorKey.charAt(0).toUpperCase() + colorKey.slice(1);
+        
+        // Click handler
+        colorBtn.addEventListener('click', function() {
+            // Remove selected from all buttons
+            document.querySelectorAll('.marker-color-btn').forEach(b => {
+                b.classList.remove('selected');
+                b.style.borderColor = 'transparent';
+                b.style.transform = 'scale(1)';
+            });
+            
+            // Add selected to clicked button
+            this.classList.add('selected');
+            this.style.borderColor = '#007AFF';
+            this.style.borderWidth = '3px';
+            this.style.transform = 'scale(1.1)';
+            
+            // Update current marker color
+            appState.currentMarkerColor = APPLE_COLORS[colorKey];
+        });
+        
+        // Hover effects
+        colorBtn.addEventListener('mouseenter', function() {
+            if (!this.classList.contains('selected')) {
+                this.style.transform = 'scale(1.1)';
+            }
+        });
+        
+        colorBtn.addEventListener('mouseleave', function() {
+            if (!this.classList.contains('selected')) {
+                this.style.transform = 'scale(1)';
+            }
+        });
+        
+        selectorContainer.appendChild(colorBtn);
+    });
+    
+    // Set default (blue) as selected
+    const defaultBtn = selectorContainer.querySelector('[data-color="blue"]');
+    if (defaultBtn) {
+        defaultBtn.click();
+    }
+}
+
+/**
+ * Setup Marker Shape Selector
+ */
+function setupMarkerShapeSelector() {
+    const selectorContainer = document.getElementById('marker-shape-selector');
+    if (!selectorContainer) return;
+    
+    // Check if Apple icon shapes are available
+    const shapes = (typeof APPLE_ICON_SHAPES !== 'undefined') ? APPLE_ICON_SHAPES : {
+        pin: 'pin',
+        circle: 'circle',
+        square: 'square',
+        star: 'star'
+    };
+    
+    selectorContainer.innerHTML = '';
+    selectorContainer.style.cssText = 'display: flex; gap: 8px; flex-wrap: wrap;';
+    
+    // Create shape buttons
+    Object.keys(shapes).forEach(shapeKey => {
+        const shapeBtn = document.createElement('button');
+        shapeBtn.className = 'marker-shape-btn';
+        shapeBtn.dataset.shape = shapeKey;
+        shapeBtn.style.cssText = `
+            width: 48px;
+            height: 48px;
+            border: 2px solid transparent;
+            border-radius: 6px;
+            background: #f5f5f5;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        `;
+        shapeBtn.title = shapeKey.charAt(0).toUpperCase() + shapeKey.slice(1);
+        
+        // Create shape preview
+        const preview = createShapePreview(shapeKey, '#007AFF', 32);
+        shapeBtn.appendChild(preview);
+        
+        // Check if this is the current selected shape
+        const isSelected = shapeKey === appState.currentMarkerShape;
+        if (isSelected) {
+            shapeBtn.classList.add('selected');
+            shapeBtn.style.borderColor = '#007AFF';
+            shapeBtn.style.borderWidth = '3px';
+            shapeBtn.style.backgroundColor = '#E3F2FD';
+        }
+        
+        // Click handler
+        shapeBtn.addEventListener('click', function() {
+            // Remove selected from all buttons
+            document.querySelectorAll('.marker-shape-btn').forEach(b => {
+                b.classList.remove('selected');
+                b.style.borderColor = 'transparent';
+                b.style.borderWidth = '2px';
+                b.style.transform = 'scale(1)';
+                b.style.backgroundColor = '#f5f5f5';
+            });
+            
+            // Add selected to clicked button
+            this.classList.add('selected');
+            this.style.borderColor = '#007AFF';
+            this.style.borderWidth = '3px';
+            this.style.transform = 'scale(1.05)';
+            this.style.backgroundColor = '#E3F2FD';
+            
+            // Update current marker shape
+            appState.currentMarkerShape = shapeKey;
+        });
+        
+        // Hover effects
+        shapeBtn.addEventListener('mouseenter', function() {
+            if (!this.classList.contains('selected')) {
+                this.style.backgroundColor = '#e0e0e0';
+                this.style.transform = 'scale(1.05)';
+            }
+        });
+        
+        shapeBtn.addEventListener('mouseleave', function() {
+            if (!this.classList.contains('selected')) {
+                this.style.backgroundColor = '#f5f5f5';
+                this.style.transform = 'scale(1)';
+            }
+        });
+        
+        selectorContainer.appendChild(shapeBtn);
+    });
+}
+
+/**
+ * Create a shape preview element
+ */
+function createShapePreview(shape, color, size) {
+    const el = document.createElement('div');
+    el.style.width = size + 'px';
+    el.style.height = size + 'px';
+    el.style.pointerEvents = 'none';
+    
+    // Helper to adjust color brightness
+    const adjustBrightness = (hex, percent) => {
+        const num = parseInt(hex.replace("#",""), 16);
+        const amt = Math.round(2.55 * percent);
+        const R = Math.min(255, Math.max(0, (num >> 16) + amt));
+        const G = Math.min(255, Math.max(0, (num >> 8 & 0x00FF) + amt));
+        const B = Math.min(255, Math.max(0, (num & 0x0000FF) + amt));
+        return "#" + (0x1000000 + R * 0x10000 + G * 0x100 + B).toString(16).slice(1);
+    };
+    
+    if (shape === 'pin') {
+        el.style.background = `radial-gradient(circle at 50% 50%, ${color} 0%, ${color} 60%, ${adjustBrightness(color, -20)} 100%)`;
+        el.style.borderRadius = '50% 50% 50% 0';
+        el.style.transform = 'rotate(-45deg)';
+        el.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
+    } else if (shape === 'circle') {
+        el.style.background = color;
+        el.style.borderRadius = '50%';
+        el.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
+    } else if (shape === 'square') {
+        el.style.background = color;
+        el.style.borderRadius = '6px';
+        el.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
+    } else if (shape === 'star') {
+        el.style.background = color;
+        el.style.clipPath = 'polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%)';
+        el.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
+    }
+    
+    return el;
+}
+
+/**
+ * Create an icon button for the selector
+ */
+function createIconButton(iconKey, iconConfig) {
+    const btn = document.createElement('button');
+    btn.className = 'marker-icon-btn';
+    btn.dataset.iconKey = iconKey;
+    btn.style.cssText = `
+        width: 36px;
+        height: 36px;
+        border: 2px solid transparent;
+        border-radius: 4px;
+        background: #f5f5f5;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s;
+        padding: 0;
+    `;
+    btn.title = iconConfig.name;
+    
+    // Create icon preview
+    if (typeof createMarkerElement !== 'undefined') {
+        const iconEl = createMarkerElement(iconConfig);
+        iconEl.style.transform = 'scale(0.5)';
+        iconEl.style.pointerEvents = 'none';
+        btn.appendChild(iconEl);
+    } else {
+        // Fallback: simple icon
+        const iconSpan = document.createElement('span');
+        iconSpan.className = 'material-icons';
+        iconSpan.textContent = iconConfig.icon;
+        iconSpan.style.color = iconConfig.color;
+        iconSpan.style.fontSize = '20px';
+        btn.appendChild(iconSpan);
+    }
+    
+    // Click handler
+    btn.addEventListener('click', function() {
+        // Remove selected class from all buttons
+        document.querySelectorAll('.marker-icon-btn').forEach(b => {
+            b.classList.remove('selected');
+            b.style.borderColor = 'transparent';
+            b.style.backgroundColor = '#f5f5f5';
+        });
+        
+        // Add selected class to clicked button
+        this.classList.add('selected');
+        this.style.borderColor = '#2196F3';
+        this.style.backgroundColor = '#E3F2FD';
+        
+        // Update current marker icon
+        appState.currentMarkerIcon = iconKey;
+    });
+    
+    // Hover effects
+    btn.addEventListener('mouseenter', function() {
+        if (!this.classList.contains('selected')) {
+            this.style.backgroundColor = '#e0e0e0';
+        }
+    });
+    
+    btn.addEventListener('mouseleave', function() {
+        if (!this.classList.contains('selected')) {
+            this.style.backgroundColor = '#f5f5f5';
+        }
+    });
+    
+    return btn;
+}
+
+/**
+ * Setup Markers Functionality
+ */
+function setupMarkers() {
+    // Use ElementCache if available, fallback to document.getElementById
+    const getElement = (typeof ElementCache !== 'undefined') 
+        ? (id) => ElementCache.get(id)
+        : document.getElementById.bind(document);
+    
+    // Setup marker icon selector (colors)
+    setupMarkerIconSelector();
+    
+    // Setup marker shape selector
+    setupMarkerShapeSelector();
+    
+    // Setup marker mode toggle
+    const markerModeToggle = getElement('marker-mode-toggle');
+    if (markerModeToggle) {
+        markerModeToggle.checked = appState.markerMode;
+        markerModeToggle.addEventListener('change', function() {
+            appState.markerMode = this.checked;
+            if (this.checked) {
+                showToast('Marker Mode: Click map to add markers', 'info', 2000);
+            } else {
+                showToast('Area Selection Mode: Click boundaries to select areas', 'info', 2000);
+            }
+        });
+    }
+    
+    // Setup color picker on add toggle
+    const colorPickerToggle = getElement('show-color-picker-on-add');
+    if (colorPickerToggle) {
+        colorPickerToggle.checked = appState.showColorPickerOnAdd;
+        colorPickerToggle.addEventListener('change', function() {
+            appState.showColorPickerOnAdd = this.checked;
+        });
+    }
+    
+    // Smart search input - handles both coordinates and names
+    const smartSearchInput = getElement('marker-smart-search');
+    if (!smartSearchInput) return;
+    
+    const resultsDiv = getElement('marker-search-results');
+    
+    let pasteTimeout;
+    
+    // Handle paste event
+    smartSearchInput.addEventListener('paste', function(e) {
+        clearTimeout(pasteTimeout);
+        
+        // Wait for paste to complete
+        pasteTimeout = setTimeout(() => {
+            const text = this.value.trim();
+            if (looksLikeCoordinates(text)) {
+                // Looks like coordinates - parse and add marker
+                const parsed = parseCoordinates(text);
+                if (parsed) {
+                    const name = `Marker (${parsed.lat.toFixed(4)}, ${parsed.lng.toFixed(4)})`;
+                    addMarker([parsed.lng, parsed.lat], name);
+                    this.value = '';
+                }
+            } else if (text.length >= 2 && resultsDiv) {
+                // Looks like a name - search for location
+                searchLocationForMarker(text, resultsDiv);
+            }
+        }, 50);
+    });
+    
+    // Handle input event - use debounce for name searches
+    if (typeof debounce !== 'undefined') {
+        // Use debounce utility for name searches
+        const debouncedNameSearch = debounce(function(query) {
+            if (!resultsDiv) return;
+            
+            if (query.length >= 2) {
+                resultsDiv.style.display = 'block';
+                searchLocationForMarker(query, resultsDiv);
+            } else {
+                resultsDiv.innerHTML = '';
+                resultsDiv.style.display = 'none';
+            }
+        }, 500);
+        
+        smartSearchInput.addEventListener('input', function() {
+            const query = this.value.trim();
+            clearTimeout(pasteTimeout);
+            
+            if (query.length === 0) {
+                if (resultsDiv) {
+                    resultsDiv.innerHTML = '';
+                    resultsDiv.style.display = 'none';
+                }
+                return;
+            }
+            
+            // Check if input looks like coordinates
+            if (looksLikeCoordinates(query)) {
+                // Show coordinate preview immediately (no debounce needed)
+                if (resultsDiv) {
+                    resultsDiv.style.display = 'block';
+                    const parsed = parseCoordinates(query);
+                    if (parsed) {
+                        resultsDiv.innerHTML = `
+                            <div class="search-result-item" style="padding: 12px; border-bottom: 1px solid #e0e0e0; cursor: pointer; background: #f5f5f5;">
+                                <div style="font-weight: 500; color: #212121;">
+                                    <span class="material-icons" style="font-size: 18px; vertical-align: middle;">location_on</span>
+                                    Add marker at ${parsed.lat.toFixed(4)}, ${parsed.lng.toFixed(4)}
+                                </div>
+                                <div style="font-size: 12px; color: #757575; margin-top: 4px;">
+                                    Press Enter to add
+                                </div>
+                            </div>
+                        `;
+                        
+                        // Add click handler
+                        const previewItem = resultsDiv.querySelector('.search-result-item');
+                        if (previewItem) {
+                            previewItem.addEventListener('click', function() {
+                                const name = `Marker (${parsed.lat.toFixed(4)}, ${parsed.lng.toFixed(4)})`;
+                                handleMarkerAddition([parsed.lng, parsed.lat], name);
+                                smartSearchInput.value = '';
+                                resultsDiv.innerHTML = '';
+                                resultsDiv.style.display = 'none';
+                            });
+                        }
+                    }
+                }
+            } else {
+                // Use debounced search for names
+                debouncedNameSearch(query);
+            }
+        });
+    } else {
+        // Fallback to original implementation
+        let searchTimeout;
+        smartSearchInput.addEventListener('input', function() {
+            const query = this.value.trim();
+            clearTimeout(searchTimeout);
+            clearTimeout(pasteTimeout);
+            
+            if (query.length === 0) {
+                if (resultsDiv) resultsDiv.innerHTML = '';
+                return;
+            }
+            
+            // Check if input looks like coordinates
+            if (looksLikeCoordinates(query)) {
+                // Show coordinate preview
+                if (resultsDiv) {
+                    resultsDiv.style.display = 'block';
+                    const parsed = parseCoordinates(query);
+                    if (parsed) {
+                        resultsDiv.innerHTML = `
+                            <div class="search-result-item" style="padding: 12px; border-bottom: 1px solid #e0e0e0; cursor: pointer; background: #f5f5f5;">
+                                <div style="font-weight: 500; color: #212121;">
+                                    <span class="material-icons" style="font-size: 18px; vertical-align: middle;">location_on</span>
+                                    Add marker at ${parsed.lat.toFixed(4)}, ${parsed.lng.toFixed(4)}
+                                </div>
+                                <div style="font-size: 12px; color: #757575; margin-top: 4px;">
+                                    Press Enter to add
+                                </div>
+                            </div>
+                        `;
+                        
+                        // Add click handler
+                        const previewItem = resultsDiv.querySelector('.search-result-item');
+                        if (previewItem) {
+                            previewItem.addEventListener('click', function() {
+                                const name = `Marker (${parsed.lat.toFixed(4)}, ${parsed.lng.toFixed(4)})`;
+                                handleMarkerAddition([parsed.lng, parsed.lat], name);
+                                smartSearchInput.value = '';
+                                resultsDiv.innerHTML = '';
+                                resultsDiv.style.display = 'none';
+                            });
+                        }
+                    }
+                }
+            } else if (query.length >= 2) {
+                // Looks like a name - search for location
+                if (resultsDiv) {
+                    resultsDiv.style.display = 'block';
+                }
+                searchTimeout = setTimeout(() => {
+                    searchLocationForMarker(query, resultsDiv);
+                }, 500);
+            } else {
+                if (resultsDiv) {
+                    resultsDiv.innerHTML = '';
+                    resultsDiv.style.display = 'none';
+                }
+            }
+        });
+    }
+    
+    // Handle Enter key
+    smartSearchInput.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            clearTimeout(pasteTimeout);
+            
+            const query = this.value.trim();
+            if (!query) return;
+            
+            // Check if it's coordinates
+            if (looksLikeCoordinates(query)) {
+                const parsed = parseCoordinates(query);
+                if (parsed) {
+                    const name = `Marker (${parsed.lat.toFixed(4)}, ${parsed.lng.toFixed(4)})`;
+                    handleMarkerAddition([parsed.lng, parsed.lat], name);
+                    this.value = '';
+                    if (resultsDiv) {
+                        resultsDiv.innerHTML = '';
+                        resultsDiv.style.display = 'none';
+                    }
+                }
+            }
+            // For names, user can click on search results
+        }
+    });
+    
+    // Clear all markers button
+    const clearMarkersBtn = document.getElementById('clear-markers-btn');
+    if (clearMarkersBtn) {
+        clearMarkersBtn.addEventListener('click', function() {
+            clearAllMarkers();
+        });
+    }
+    
+    // Update markers list
+    updateMarkersList();
+}
+
+/**
+ * Add a marker to the map
+ */
+function addMarker(coordinates, name, color = null, shape = 'pin') {
+    if (!appState.map) {
+        showToast('Map not initialized', 'error');
+        return;
+    }
+    
+    const markerId = 'marker-' + Date.now();
+    
+    // Use provided color or current selected color
+    const markerColor = color || appState.currentMarkerColor || '#007AFF';
+    const markerShape = shape || appState.currentMarkerShape || 'pin';
+    
+    // Create Apple-style marker element
+    let el;
+    if (typeof createAppleMarker !== 'undefined') {
+        el = createAppleMarker(markerColor, markerShape, 24);
+    } else {
+        // Fallback: create simple Apple-style pin
+        el = createAppleMarkerFallback(markerColor, markerShape, 24);
+    }
+    
+    // Add click event to marker element (before creating Mapbox marker)
+    el.addEventListener('click', function(e) {
+        e.stopPropagation();
+        // Store marker ID for later update
+        showMarkerIconPickerPopup(coordinates, { x: e.clientX, y: e.clientY }, markerId);
+    });
+    
+    // Create Mapbox marker
+    const marker = new mapboxgl.Popup({ offset: 25 })
+        .setHTML(`<strong>${name}</strong><br>${coordinates[0].toFixed(4)}, ${coordinates[1].toFixed(4)}`);
+    
+    // Get anchor point based on marker shape
+    const anchor = (typeof getMarkerAnchor !== 'undefined') 
+        ? getMarkerAnchor(markerShape) 
+        : 'center';
+    
+    const mapboxMarker = new mapboxgl.Marker({
+        element: el,
+        draggable: false,
+        anchor: anchor  // Set anchor point for accurate positioning
+    })
+    .setLngLat(coordinates)
+    .setPopup(marker)
+    .addTo(appState.map);
+    
+    // Store marker info
+    const markerInfo = {
+        id: markerId,
+        name: name,
+        coordinates: coordinates,
+        marker: mapboxMarker,
+        popup: marker,
+        color: markerColor,
+        shape: markerShape,
+            baseSize: 24,  // Store base size for scaling
+        element: el  // Store element reference for scaling
+    };
+    
+    appState.markers.push(markerInfo);
+    
+    // Apply initial scale based on current zoom
+    if (appState.map) {
+        updateMarkersScale();
+    }
+    
+    // Update UI
+    updateMarkersList();
+    
+    // Fly to marker location
+    appState.map.flyTo({
+        center: coordinates,
+        zoom: Math.max(appState.map.getZoom(), 8),
+        duration: 1000
+    });
+    
+    showToast(`Marker "${name}" added`, 'success');
+    
+    return markerId;
+}
+
+/**
+ * Fallback function to create Apple-style marker if createAppleMarker is not available
+ */
+function createAppleMarkerFallback(color = '#007AFF', shape = 'pin', size = 24) {
+    const el = document.createElement('div');
+    el.className = 'apple-marker';
+    el.dataset.color = color;
+    el.dataset.shape = shape;
+    
+    el.style.width = size + 'px';
+    el.style.height = size + 'px';
+    el.style.cursor = 'pointer';
+    el.style.position = 'relative';
+    el.style.transition = 'transform 0.2s';
+    el.style.zIndex = '10';
+    
+    // Helper to darken color
+    const darkenColor = (hex, percent) => {
+        const num = parseInt(hex.replace("#",""), 16);
+        const amt = Math.round(2.55 * percent);
+        const R = Math.min(255, Math.max(0, (num >> 16) + amt));
+        const G = Math.min(255, Math.max(0, (num >> 8 & 0x00FF) + amt));
+        const B = Math.min(255, Math.max(0, (num & 0x0000FF) + amt));
+        return "#" + (0x1000000 + R * 0x10000 + G * 0x100 + B).toString(16).slice(1);
+    };
+    
+    // Apple-style pin shape
+    if (shape === 'pin') {
+        el.style.background = `radial-gradient(circle at 50% 50%, ${color} 0%, ${color} 60%, ${darkenColor(color, -20)} 100%)`;
+        el.style.borderRadius = '50% 50% 50% 0';
+        el.style.transform = 'rotate(-45deg)';
+        el.style.boxShadow = `0 4px 12px rgba(0, 0, 0, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.2)`;
+        
+        // Add inner highlight
+        const inner = document.createElement('div');
+        inner.style.position = 'absolute';
+        inner.style.top = '25%';
+        inner.style.left = '25%';
+        inner.style.width = '50%';
+        inner.style.height = '50%';
+        inner.style.borderRadius = '50%';
+        inner.style.background = 'rgba(255, 255, 255, 0.3)';
+        el.appendChild(inner);
+        
+        // White center dot
+        const dot = document.createElement('div');
+        dot.style.position = 'absolute';
+        dot.style.top = '35%';
+        dot.style.left = '35%';
+        dot.style.width = '30%';
+        dot.style.height = '30%';
+        dot.style.borderRadius = '50%';
+        dot.style.background = 'white';
+        el.appendChild(dot);
+    } else if (shape === 'circle') {
+        el.style.background = color;
+        el.style.borderRadius = '50%';
+        el.style.boxShadow = `0 4px 12px rgba(0, 0, 0, 0.15)`;
+        
+        const inner = document.createElement('div');
+        inner.style.position = 'absolute';
+        inner.style.top = '25%';
+        inner.style.left = '25%';
+        inner.style.width = '50%';
+        inner.style.height = '50%';
+        inner.style.borderRadius = '50%';
+        inner.style.background = 'rgba(255, 255, 255, 0.3)';
+        el.appendChild(inner);
+    }
+    
+    return el;
+}
+
+/**
+ * Show marker icon picker popup
+ */
+function showMarkerIconPickerPopup(coordinates, point, markerId) {
+    const popup = document.getElementById('marker-icon-picker-popup');
+    if (!popup) return;
+    
+    // Store current marker ID being edited
+    appState.editingMarkerId = markerId;
+    
+    // Position popup near click point
+    if (point && point.x && point.y) {
+        popup.style.left = point.x + 'px';
+        popup.style.top = point.y + 'px';
+        popup.style.transform = 'translate(-50%, -50%)';
+    } else {
+        popup.style.left = '50%';
+        popup.style.top = '50%';
+        popup.style.transform = 'translate(-50%, -50%)';
+    }
+    
+    // Get current marker info
+    const markerInfo = appState.markers.find(m => m.id === markerId);
+    const currentColor = markerInfo ? markerInfo.color : appState.currentMarkerColor;
+    const currentShape = markerInfo ? markerInfo.shape : appState.currentMarkerShape;
+    
+    // Populate color selector
+    const colorSelectorContainer = popup.querySelector('#marker-edit-color-selector');
+    if (!colorSelectorContainer) return;
+    
+    colorSelectorContainer.innerHTML = '';
+    colorSelectorContainer.style.cssText = 'display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0;';
+    
+    // Check if Apple colors are available
+    const colors = (typeof APPLE_COLORS !== 'undefined') ? APPLE_COLORS : {
+        red: '#FF3B30',
+        orange: '#FF9500',
+        yellow: '#FFCC00',
+        green: '#34C759',
+        teal: '#5AC8FA',
+        blue: '#007AFF',
+        indigo: '#5856D6',
+        purple: '#AF52DE',
+        pink: '#FF2D55',
+        gray: '#8E8E93'
+    };
+    
+    let selectedColor = currentColor;
+    let selectedShape = currentShape || 'pin';
+    
+    // Create color buttons
+    Object.keys(colors).forEach(colorKey => {
+        const colorBtn = document.createElement('button');
+        colorBtn.className = 'marker-color-btn';
+        colorBtn.dataset.color = colors[colorKey];
+        const isSelected = colors[colorKey] === currentColor;
+        
+        colorBtn.style.cssText = `
+            width: 40px;
+            height: 40px;
+            border: ${isSelected ? '3px solid #007AFF' : '2px solid transparent'};
+            border-radius: 6px;
+            background: ${colors[colorKey]};
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            transform: ${isSelected ? 'scale(1.1)' : 'scale(1)'};
+        `;
+        colorBtn.title = colorKey.charAt(0).toUpperCase() + colorKey.slice(1);
+        
+        if (isSelected) {
+            colorBtn.classList.add('selected');
+        }
+        
+        // Click handler
+        colorBtn.addEventListener('click', function() {
+            // Remove selected from all buttons
+            colorSelectorContainer.querySelectorAll('.marker-color-btn').forEach(b => {
+                b.classList.remove('selected');
+                b.style.borderColor = 'transparent';
+                b.style.borderWidth = '2px';
+                b.style.transform = 'scale(1)';
+            });
+            
+            // Add selected to clicked button
+            this.classList.add('selected');
+            this.style.borderColor = '#007AFF';
+            this.style.borderWidth = '3px';
+            this.style.transform = 'scale(1.1)';
+            
+            // Update selected color
+            selectedColor = colors[colorKey];
+            
+            // Update marker immediately
+            updateMarkerIcon(markerId, selectedColor, selectedShape);
+        });
+        
+        // Hover effects
+        colorBtn.addEventListener('mouseenter', function() {
+            if (!this.classList.contains('selected')) {
+                this.style.transform = 'scale(1.15)';
+            }
+        });
+        
+        colorBtn.addEventListener('mouseleave', function() {
+            if (!this.classList.contains('selected')) {
+                this.style.transform = 'scale(1)';
+            }
+        });
+        
+        colorSelectorContainer.appendChild(colorBtn);
+    });
+    
+    // Populate shape selector
+    const shapeSelectorContainer = popup.querySelector('#marker-edit-shape-selector');
+    if (shapeSelectorContainer) {
+        shapeSelectorContainer.innerHTML = '';
+        shapeSelectorContainer.style.cssText = 'display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0;';
+        
+        const shapes = (typeof APPLE_ICON_SHAPES !== 'undefined') ? APPLE_ICON_SHAPES : {
+            pin: 'pin',
+            circle: 'circle',
+            square: 'square',
+            star: 'star'
+        };
+        
+        // Create shape buttons
+        Object.keys(shapes).forEach(shapeKey => {
+            const shapeBtn = document.createElement('button');
+            shapeBtn.className = 'marker-shape-btn-popup';
+            shapeBtn.dataset.shape = shapeKey;
+            const isSelected = shapeKey === currentShape;
+            
+            shapeBtn.style.cssText = `
+                width: 48px;
+                height: 48px;
+                border: ${isSelected ? '3px solid #007AFF' : '2px solid transparent'};
+                border-radius: 6px;
+                background: #f5f5f5;
+                cursor: pointer;
+                transition: all 0.2s;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            `;
+            shapeBtn.title = shapeKey.charAt(0).toUpperCase() + shapeKey.slice(1);
+            
+            // Create shape preview
+            const preview = createShapePreview(shapeKey, currentColor, 32);
+            shapeBtn.appendChild(preview);
+            
+            if (isSelected) {
+                shapeBtn.classList.add('selected');
+                shapeBtn.style.backgroundColor = '#E3F2FD';
+            }
+            
+            // Click handler
+            shapeBtn.addEventListener('click', function() {
+                // Remove selected from all buttons
+                shapeSelectorContainer.querySelectorAll('.marker-shape-btn-popup').forEach(b => {
+                    b.classList.remove('selected');
+                    b.style.borderColor = 'transparent';
+                    b.style.borderWidth = '2px';
+                    b.style.transform = 'scale(1)';
+                    b.style.backgroundColor = '#f5f5f5';
+                });
+                
+                // Add selected to clicked button
+                this.classList.add('selected');
+                this.style.borderColor = '#007AFF';
+                this.style.borderWidth = '3px';
+                this.style.transform = 'scale(1.05)';
+                this.style.backgroundColor = '#E3F2FD';
+                
+                // Update selected shape
+                selectedShape = shapeKey;
+                
+                // Update marker immediately
+                updateMarkerIcon(markerId, selectedColor, selectedShape);
+            });
+            
+            // Hover effects
+            shapeBtn.addEventListener('mouseenter', function() {
+                if (!this.classList.contains('selected')) {
+                    this.style.backgroundColor = '#e0e0e0';
+                    this.style.transform = 'scale(1.05)';
+                }
+            });
+            
+            shapeBtn.addEventListener('mouseleave', function() {
+                if (!this.classList.contains('selected')) {
+                    this.style.backgroundColor = '#f5f5f5';
+                    this.style.transform = 'scale(1)';
+                }
+            });
+            
+            shapeSelectorContainer.appendChild(shapeBtn);
+        });
+    }
+    
+    // Show popup
+    popup.style.display = 'block';
+    
+    // Close button handler
+    const closeBtn = popup.querySelector('#close-marker-picker-btn');
+    if (closeBtn) {
+        closeBtn.onclick = function() {
+            popup.style.display = 'none';
+        };
+    }
+    
+    // Close popup when clicking outside
+    setTimeout(() => {
+        const closeOnOutsideClick = function(e) {
+            if (!popup.contains(e.target) && !e.target.closest('.apple-marker')) {
+                popup.style.display = 'none';
+                document.removeEventListener('click', closeOnOutsideClick);
+            }
+        };
+        document.addEventListener('click', closeOnOutsideClick);
+    }, 100);
+}
+
+/**
+ * Show color picker popup when adding a new marker
+ */
+function showMarkerColorPickerOnAdd(coordinates, name) {
+    const popup = document.getElementById('marker-color-picker-on-add-popup');
+    if (!popup) return;
+    
+    // Store pending marker data
+    appState.pendingMarkerData = {
+        coordinates: coordinates,
+        name: name
+    };
+    
+    // Update location display
+    const locationDisplay = popup.querySelector('#marker-add-popup-location');
+    if (locationDisplay) {
+        locationDisplay.textContent = name;
+    }
+    
+    // Position popup in center of screen
+    popup.style.left = '50%';
+    popup.style.top = '50%';
+    popup.style.transform = 'translate(-50%, -50%)';
+    
+    // Populate color selector
+    const selectorContainer = popup.querySelector('#marker-color-selector-on-add');
+    if (!selectorContainer) return;
+    
+    selectorContainer.innerHTML = '';
+    selectorContainer.style.cssText = 'display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0;';
+    
+    // Get Apple colors
+    const colors = (typeof APPLE_COLORS !== 'undefined') ? APPLE_COLORS : {
+        red: '#FF3B30',
+        orange: '#FF9500',
+        yellow: '#FFCC00',
+        green: '#34C759',
+        teal: '#5AC8FA',
+        blue: '#007AFF',
+        indigo: '#5856D6',
+        purple: '#AF52DE',
+        pink: '#FF2D55',
+        gray: '#8E8E93'
+    };
+    
+    let selectedColor = appState.currentMarkerColor || '#007AFF';
+    
+    // Create color buttons
+    Object.keys(colors).forEach(colorKey => {
+        const colorBtn = document.createElement('button');
+        colorBtn.className = 'marker-color-btn';
+        colorBtn.dataset.color = colors[colorKey];
+        const isSelected = colors[colorKey] === selectedColor;
+        
+        colorBtn.style.cssText = `
+            width: 40px;
+            height: 40px;
+            border: ${isSelected ? '3px solid #007AFF' : '2px solid transparent'};
+            border-radius: 6px;
+            background: ${colors[colorKey]};
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            transform: ${isSelected ? 'scale(1.1)' : 'scale(1)'};
+        `;
+        colorBtn.title = colorKey.charAt(0).toUpperCase() + colorKey.slice(1);
+        
+        if (isSelected) {
+            colorBtn.classList.add('selected');
+        }
+        
+        // Click handler to select color
+        colorBtn.addEventListener('click', function() {
+            // Remove selected from all buttons
+            selectorContainer.querySelectorAll('.marker-color-btn').forEach(b => {
+                b.classList.remove('selected');
+                b.style.borderColor = 'transparent';
+                b.style.borderWidth = '2px';
+                b.style.transform = 'scale(1)';
+            });
+            
+            // Add selected to clicked button
+            this.classList.add('selected');
+            this.style.borderColor = '#007AFF';
+            this.style.borderWidth = '3px';
+            this.style.transform = 'scale(1.1)';
+            
+            // Update selected color
+            selectedColor = colors[colorKey];
+        });
+        
+        // Hover effects
+        colorBtn.addEventListener('mouseenter', function() {
+            if (!this.classList.contains('selected')) {
+                this.style.transform = 'scale(1.15)';
+            }
+        });
+        
+        colorBtn.addEventListener('mouseleave', function() {
+            if (!this.classList.contains('selected')) {
+                this.style.transform = 'scale(1)';
+            }
+        });
+        
+        selectorContainer.appendChild(colorBtn);
+    });
+    
+    // Populate shape selector
+    const shapeSelectorContainer = popup.querySelector('#marker-shape-selector-on-add');
+    let selectedShape = appState.currentMarkerShape || 'pin';
+    
+    if (shapeSelectorContainer) {
+        shapeSelectorContainer.innerHTML = '';
+        shapeSelectorContainer.style.cssText = 'display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0;';
+        
+        const shapes = (typeof APPLE_ICON_SHAPES !== 'undefined') ? APPLE_ICON_SHAPES : {
+            pin: 'pin',
+            circle: 'circle',
+            square: 'square',
+            star: 'star'
+        };
+        
+        // Create shape buttons
+        Object.keys(shapes).forEach(shapeKey => {
+            const shapeBtn = document.createElement('button');
+            shapeBtn.className = 'marker-shape-btn-popup';
+            shapeBtn.dataset.shape = shapeKey;
+            const isSelected = shapeKey === selectedShape;
+            
+            shapeBtn.style.cssText = `
+                width: 48px;
+                height: 48px;
+                border: ${isSelected ? '3px solid #007AFF' : '2px solid transparent'};
+                border-radius: 6px;
+                background: #f5f5f5;
+                cursor: pointer;
+                transition: all 0.2s;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            `;
+            shapeBtn.title = shapeKey.charAt(0).toUpperCase() + shapeKey.slice(1);
+            
+            // Create shape preview
+            const preview = createShapePreview(shapeKey, selectedColor, 32);
+            shapeBtn.appendChild(preview);
+            
+            if (isSelected) {
+                shapeBtn.classList.add('selected');
+                shapeBtn.style.backgroundColor = '#E3F2FD';
+            }
+            
+            // Click handler
+            shapeBtn.addEventListener('click', function() {
+                // Remove selected from all buttons
+                shapeSelectorContainer.querySelectorAll('.marker-shape-btn-popup').forEach(b => {
+                    b.classList.remove('selected');
+                    b.style.borderColor = 'transparent';
+                    b.style.borderWidth = '2px';
+                    b.style.transform = 'scale(1)';
+                    b.style.backgroundColor = '#f5f5f5';
+                });
+                
+                // Add selected to clicked button
+                this.classList.add('selected');
+                this.style.borderColor = '#007AFF';
+                this.style.borderWidth = '3px';
+                this.style.transform = 'scale(1.05)';
+                this.style.backgroundColor = '#E3F2FD';
+                
+                // Update selected shape
+                selectedShape = shapeKey;
+            });
+            
+            // Hover effects
+            shapeBtn.addEventListener('mouseenter', function() {
+                if (!this.classList.contains('selected')) {
+                    this.style.backgroundColor = '#e0e0e0';
+                    this.style.transform = 'scale(1.05)';
+                }
+            });
+            
+            shapeBtn.addEventListener('mouseleave', function() {
+                if (!this.classList.contains('selected')) {
+                    this.style.backgroundColor = '#f5f5f5';
+                    this.style.transform = 'scale(1)';
+                }
+            });
+            
+            shapeSelectorContainer.appendChild(shapeBtn);
+        });
+    }
+    
+    // Show popup
+    popup.style.display = 'block';
+    
+    // Button handlers - create fresh handlers each time
+    const confirmBtn = popup.querySelector('#confirm-add-marker-btn');
+    const useDefaultBtn = popup.querySelector('#use-default-color-btn');
+    const cancelBtn = popup.querySelector('#cancel-add-marker-btn');
+    
+    // Helper to create handler
+    const createConfirmHandler = () => {
+        const handler = function() {
+            if (appState.pendingMarkerData) {
+                const currentSelectedColor = selectorContainer.querySelector('.marker-color-btn.selected');
+                const finalColor = currentSelectedColor ? currentSelectedColor.dataset.color : selectedColor;
+                const currentSelectedShape = shapeSelectorContainer ? shapeSelectorContainer.querySelector('.marker-shape-btn-popup.selected') : null;
+                const finalShape = currentSelectedShape ? currentSelectedShape.dataset.shape : selectedShape;
+                addMarker(
+                    appState.pendingMarkerData.coordinates,
+                    appState.pendingMarkerData.name,
+                    finalColor,
+                    finalShape
+                );
+                popup.style.display = 'none';
+                appState.pendingMarkerData = null;
+            }
+        };
+        return handler;
+    };
+    
+    const createUseDefaultHandler = () => {
+        const handler = function() {
+            if (appState.pendingMarkerData) {
+                addMarker(
+                    appState.pendingMarkerData.coordinates,
+                    appState.pendingMarkerData.name,
+                    appState.currentMarkerColor,
+                    appState.currentMarkerShape
+                );
+                popup.style.display = 'none';
+                appState.pendingMarkerData = null;
+            }
+        };
+        return handler;
+    };
+    
+    const createCancelHandler = () => {
+        const handler = function() {
+            popup.style.display = 'none';
+            appState.pendingMarkerData = null;
+        };
+        return handler;
+    };
+    
+    // Remove old listeners and add new ones
+    confirmBtn.replaceWith(confirmBtn.cloneNode(true));
+    useDefaultBtn.replaceWith(useDefaultBtn.cloneNode(true));
+    cancelBtn.replaceWith(cancelBtn.cloneNode(true));
+    
+    // Get new references
+    const newConfirmBtn = popup.querySelector('#confirm-add-marker-btn');
+    const newUseDefaultBtn = popup.querySelector('#use-default-color-btn');
+    const newCancelBtn = popup.querySelector('#cancel-add-marker-btn');
+    
+    newConfirmBtn.addEventListener('click', createConfirmHandler());
+    newUseDefaultBtn.addEventListener('click', createUseDefaultHandler());
+    newCancelBtn.addEventListener('click', createCancelHandler());
+    
+    // Close popup when clicking outside
+    setTimeout(() => {
+        const closeOnOutsideClick = function(e) {
+            if (!popup.contains(e.target) && popup.style.display !== 'none') {
+                popup.style.display = 'none';
+                appState.pendingMarkerData = null;
+                document.removeEventListener('click', closeOnOutsideClick);
+            }
+        };
+        document.addEventListener('click', closeOnOutsideClick);
+    }, 100);
+}
+
+/**
+ * Add marker at clicked location on map
+ */
+function addMarkerAtLocation(e) {
+    const coordinates = [e.lngLat.lng, e.lngLat.lat];
+    const name = `Marker (${e.lngLat.lat.toFixed(4)}, ${e.lngLat.lng.toFixed(4)})`;
+    
+    if (appState.showColorPickerOnAdd) {
+        // Show color picker popup
+        showMarkerColorPickerOnAdd(coordinates, name);
+    } else {
+        // Add marker directly with sidebar default color and shape
+        addMarker(coordinates, name, appState.currentMarkerColor, appState.currentMarkerShape);
+    }
+}
+
+/**
+ * Handle marker addition - checks if color picker should be shown or add directly
+ */
+function handleMarkerAddition(coordinates, name) {
+    if (appState.showColorPickerOnAdd) {
+        // Show color picker popup
+        showMarkerColorPickerOnAdd(coordinates, name);
+    } else {
+        // Add marker directly with sidebar default color and shape
+        addMarker(coordinates, name, appState.currentMarkerColor, appState.currentMarkerShape);
+    }
+}
+
+/**
+ * Update markers scale based on map zoom level
+ * Scales markers proportionally - smaller when zoomed out, larger when zoomed in
+ * Uses actual size changes instead of CSS transform to maintain accurate positioning
+ */
+function updateMarkersScale() {
+    if (!appState || !appState.map || !appState.markers || appState.markers.length === 0) {
+        return;
+    }
+    
+    const currentZoom = appState.map.getZoom();
+    
+    // Base zoom level for normal size (marker size = baseSize)
+    // Zoom 10 = 1.0x scale (normal size)
+    const baseZoom = 10;
+    
+    // Calculate scale factor to maintain zoom 10 proportion
+    // Scale changes exponentially with zoom level
+    // Formula: scale = 2^((currentZoom - baseZoom) / 3)
+    // This makes zoom 10 = 1.0x, zoom 7 = 0.5x, zoom 13 = 1.6x
+    const scaleFactor = Math.pow(2, (currentZoom - baseZoom) / 3);
+    
+    // Clamp scale between reasonable bounds (0.15x to 3x)
+    const clampedScale = Math.max(0.15, Math.min(3.0, scaleFactor));
+    
+    console.log(`📏 Updating marker scale: zoom=${currentZoom.toFixed(2)}, scale=${clampedScale.toFixed(2)}x, markers=${appState.markers.length}`);
+    
+    // Update all markers
+    let updatedCount = 0;
+    appState.markers.forEach(markerInfo => {
+        if (!markerInfo.element || !markerInfo.marker) {
+            console.warn('⚠️ Marker missing element or marker reference:', markerInfo.id);
+            return;
+        }
+        
+        const element = markerInfo.element;
+        const shape = markerInfo.shape || 'pin';
+        
+        // Get base transform (rotation for pin shape)
+        let baseTransform = '';
+        if (shape === 'pin') {
+            baseTransform = 'rotate(-45deg)';
+        }
+        
+        // Apply scale transform while preserving rotation
+        // Store the scale on the element for hover effects
+        element.dataset.currentScale = clampedScale;
+        
+        // Combine transform: rotation (if pin) + scale
+        const transformValue = baseTransform 
+            ? `${baseTransform} scale(${clampedScale})` 
+            : `scale(${clampedScale})`;
+        
+        // Apply transform directly - inline styles have high priority
+        // Remove transition temporarily to allow instant scaling
+        const originalTransition = element.style.transition;
+        element.style.transition = 'none';
+        
+        element.style.transform = transformValue;
+        element.style.transformOrigin = 'center center';
+        
+        // Restore transition after a brief moment
+        requestAnimationFrame(() => {
+            element.style.transition = originalTransition || 'transform 0.2s';
+        });
+        
+        // Force repaint to ensure changes are visible
+        void element.offsetHeight; // Trigger reflow
+        
+        updatedCount++;
+    });
+    
+    console.log(`✅ Updated ${updatedCount} markers`);
+}
+
+/**
+ * Update marker icon/color
+ */
+function updateMarkerIcon(markerId, color, shape = 'pin') {
+    const markerInfo = appState.markers.find(m => m.id === markerId);
+    if (!markerInfo || !markerInfo.marker) return;
+    
+    // Create new marker element
+    let newEl;
+    if (typeof createAppleMarker !== 'undefined') {
+        newEl = createAppleMarker(color, shape, 24);
+    } else {
+        newEl = createAppleMarkerFallback(color, shape, 24);
+    }
+    
+    // Add click event to new element
+    newEl.addEventListener('click', function(e) {
+        e.stopPropagation();
+        const markerInfo = appState.markers.find(m => m.id === markerId);
+        if (markerInfo && markerInfo.popup) {
+            markerInfo.popup.remove();
+        }
+        showMarkerIconPickerPopup(markerInfo.coordinates, { x: e.clientX, y: e.clientY }, markerId);
+    });
+    
+    // Remove old marker from map
+    markerInfo.marker.remove();
+    
+    // Get anchor point based on marker shape
+    const anchor = (typeof getMarkerAnchor !== 'undefined') 
+        ? getMarkerAnchor(shape) 
+        : 'center';
+    
+    // Create new marker
+    const newMarker = new mapboxgl.Marker({
+        element: newEl,
+        draggable: false,
+        anchor: anchor  // Set anchor point for accurate positioning
+    })
+    .setLngLat(markerInfo.coordinates)
+    .setPopup(markerInfo.popup)
+    .addTo(appState.map);
+    
+    // Update marker info
+    markerInfo.marker = newMarker;
+    markerInfo.color = color;
+    markerInfo.shape = shape;
+    markerInfo.element = newEl; // Update element reference
+    
+    // Apply current scale to updated marker
+    if (appState.map) {
+        updateMarkersScale();
+    }
+    
+    showToast('Marker updated', 'success');
+}
+
+/**
+ * Search location using Mapbox Geocoding API
+ */
+async function searchLocationForMarker(query, resultsDiv) {
+    if (!CONFIG.MAPBOX.TOKEN) {
+        showToast('Mapbox token not configured', 'error');
+        return;
+    }
+    
+    if (!resultsDiv) return;
+    
+    // Show results container
+    resultsDiv.style.display = 'block';
+    
+    try {
+        resultsDiv.innerHTML = '<div style="padding: 8px; color: #666;">Searching...</div>';
+        
+        // Use Mapbox Geocoding API
+        const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${CONFIG.MAPBOX.TOKEN}&limit=5`;
+        
+        const response = await fetch(url);
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        
+        if (!data.features || data.features.length === 0) {
+            resultsDiv.innerHTML = '<div style="padding: 8px; color: #666;">No results found</div>';
+            return;
+        }
+        
+        // Display results
+        resultsDiv.innerHTML = '';
+        data.features.forEach((feature) => {
+            const resultItem = document.createElement('div');
+            resultItem.className = 'search-result-item';
+            resultItem.style.cssText = 'padding: 12px; border-bottom: 1px solid #e0e0e0; cursor: pointer; transition: background 0.2s;';
+            
+            // Mapbox returns coordinates as [lng, lat]
+            const coords = feature.geometry.coordinates;
+            const lng = coords[0];
+            const lat = coords[1];
+            
+            resultItem.innerHTML = `
+                <div style="font-weight: 500; color: #212121;">${feature.place_name}</div>
+                <div style="font-size: 12px; color: #757575; margin-top: 4px;">${lat.toFixed(4)}, ${lng.toFixed(4)}</div>
+            `;
+            
+            resultItem.addEventListener('mouseenter', function() {
+                this.style.backgroundColor = '#f5f5f5';
+            });
+            
+            resultItem.addEventListener('mouseleave', function() {
+                this.style.backgroundColor = 'white';
+            });
+            
+            resultItem.addEventListener('click', function() {
+                const name = feature.place_name;
+                
+                // Mapbox returns [lng, lat], which is what addMarker expects
+                handleMarkerAddition(coords, name);
+                
+                // Clear search
+                const searchInput = document.getElementById('marker-smart-search');
+                if (searchInput) searchInput.value = '';
+                resultsDiv.innerHTML = '';
+                resultsDiv.style.display = 'none';
+            });
+            
+            resultsDiv.appendChild(resultItem);
+        });
+        
+    } catch (error) {
+        console.error('Search error:', error);
+        if (resultsDiv) {
+            resultsDiv.innerHTML = `<div style="padding: 8px; color: #d32f2f;">Search failed: ${error.message}. Please try again.</div>`;
+        }
+    }
+}
+
+/**
+ * Update markers list in UI
+ */
+function updateMarkersList() {
+    const markersList = document.getElementById('markers-list');
+    const markersCount = document.getElementById('markers-count');
+    const clearMarkersBtn = document.getElementById('clear-markers-btn');
+    
+    if (!markersList) return;
+    
+    if (appState.markers.length === 0) {
+        markersList.innerHTML = '<p class="empty-state">No markers added yet</p>';
+        if (clearMarkersBtn) clearMarkersBtn.style.display = 'none';
+        if (markersCount) markersCount.textContent = '0';
+        return;
+    }
+    
+    // Show clear button
+    if (clearMarkersBtn) clearMarkersBtn.style.display = 'block';
+    if (markersCount) markersCount.textContent = appState.markers.length.toString();
+    
+    // Build markers list
+    markersList.innerHTML = '';
+    appState.markers.forEach((markerInfo) => {
+        const markerItem = document.createElement('div');
+        markerItem.className = 'selected-area-item';
+        markerItem.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 8px; border-bottom: 1px solid #e0e0e0;';
+        markerItem.innerHTML = `
+            <div style="flex: 1;">
+                <div style="font-weight: 500; color: #212121;">${markerInfo.name}</div>
+                <div style="font-size: 11px; color: #757575;">${markerInfo.coordinates[0].toFixed(4)}, ${markerInfo.coordinates[1].toFixed(4)}</div>
+            </div>
+            <button class="icon-btn" data-marker-id="${markerInfo.id}" style="padding: 4px; color: #d32f2f;" title="Remove marker">
+                <span class="material-icons" style="font-size: 18px;">delete</span>
+            </button>
+        `;
+        
+        // Add delete button event
+        const deleteBtn = markerItem.querySelector('button[data-marker-id]');
+        if (deleteBtn) {
+            deleteBtn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                removeMarker(markerInfo.id);
+            });
+        }
+        
+        // Add click to fly to marker
+        markerItem.style.cursor = 'pointer';
+        markerItem.addEventListener('click', function(e) {
+            if (e.target.closest('button')) return; // Don't fly if clicking delete button
+            
+            appState.map.flyTo({
+                center: markerInfo.coordinates,
+                zoom: Math.max(appState.map.getZoom(), 10),
+                duration: 1000
+            });
+        });
+        
+        markersList.appendChild(markerItem);
+    });
+}
+
+/**
+ * Remove a marker
+ */
+function removeMarker(markerId) {
+    const markerIndex = appState.markers.findIndex(m => m.id === markerId);
+    if (markerIndex === -1) return;
+    
+    const markerInfo = appState.markers[markerIndex];
+    
+    // Remove from map
+    if (markerInfo.marker) {
+        markerInfo.marker.remove();
+    }
+    
+    // Remove from array
+    appState.markers.splice(markerIndex, 1);
+    
+    // Update UI
+    updateMarkersList();
+    
+    showToast(`Marker "${markerInfo.name}" removed`, 'success');
+}
+
+/**
+ * Clear all markers
+ */
+function clearAllMarkers() {
+    if (appState.markers.length === 0) return;
+    
+    // Remove all markers from map
+    appState.markers.forEach(markerInfo => {
+        if (markerInfo.marker) {
+            markerInfo.marker.remove();
+        }
+    });
+    
+    // Clear array
+    appState.markers = [];
+    
+    // Update UI
+    updateMarkersList();
+    
+    showToast('All markers cleared', 'success');
+}
+
+/**
+ * Show color picker popup when adding a new marker
+ */
+function showMarkerColorPickerOnAdd(coordinates, name) {
+    const popup = document.getElementById('marker-color-picker-on-add-popup');
+    if (!popup) return;
+    
+    // Store pending marker data
+    appState.pendingMarkerData = {
+        coordinates: coordinates,
+        name: name
+    };
+    
+    // Update location display
+    const locationDisplay = popup.querySelector('#marker-add-popup-location');
+    if (locationDisplay) {
+        locationDisplay.textContent = name;
+    }
+    
+    // Position popup in center of screen
+    popup.style.left = '50%';
+    popup.style.top = '50%';
+    popup.style.transform = 'translate(-50%, -50%)';
+    
+    // Populate color selector
+    const selectorContainer = popup.querySelector('#marker-color-selector-on-add');
+    if (!selectorContainer) return;
+    
+    selectorContainer.innerHTML = '';
+    selectorContainer.style.cssText = 'display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0;';
+    
+    // Get Apple colors
+    const colors = (typeof APPLE_COLORS !== 'undefined') ? APPLE_COLORS : {
+        red: '#FF3B30',
+        orange: '#FF9500',
+        yellow: '#FFCC00',
+        green: '#34C759',
+        teal: '#5AC8FA',
+        blue: '#007AFF',
+        indigo: '#5856D6',
+        purple: '#AF52DE',
+        pink: '#FF2D55',
+        gray: '#8E8E93'
+    };
+    
+    let selectedColor = appState.currentMarkerColor || '#007AFF';
+    
+    // Create color buttons
+    Object.keys(colors).forEach(colorKey => {
+        const colorBtn = document.createElement('button');
+        colorBtn.className = 'marker-color-btn';
+        colorBtn.dataset.color = colors[colorKey];
+        const isSelected = colors[colorKey] === selectedColor;
+        
+        colorBtn.style.cssText = `
+            width: 40px;
+            height: 40px;
+            border: ${isSelected ? '3px solid #007AFF' : '2px solid transparent'};
+            border-radius: 6px;
+            background: ${colors[colorKey]};
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            transform: ${isSelected ? 'scale(1.1)' : 'scale(1)'};
+        `;
+        colorBtn.title = colorKey.charAt(0).toUpperCase() + colorKey.slice(1);
+        
+        if (isSelected) {
+            colorBtn.classList.add('selected');
+        }
+        
+        // Click handler to select color
+        colorBtn.addEventListener('click', function() {
+            // Remove selected from all buttons
+            selectorContainer.querySelectorAll('.marker-color-btn').forEach(b => {
+                b.classList.remove('selected');
+                b.style.borderColor = 'transparent';
+                b.style.borderWidth = '2px';
+                b.style.transform = 'scale(1)';
+            });
+            
+            // Add selected to clicked button
+            this.classList.add('selected');
+            this.style.borderColor = '#007AFF';
+            this.style.borderWidth = '3px';
+            this.style.transform = 'scale(1.1)';
+            
+            // Update selected color
+            selectedColor = colors[colorKey];
+        });
+        
+        // Hover effects
+        colorBtn.addEventListener('mouseenter', function() {
+            if (!this.classList.contains('selected')) {
+                this.style.transform = 'scale(1.15)';
+            }
+        });
+        
+        colorBtn.addEventListener('mouseleave', function() {
+            if (!this.classList.contains('selected')) {
+                this.style.transform = 'scale(1)';
+            }
+        });
+        
+        selectorContainer.appendChild(colorBtn);
+    });
+    
+    // Show popup
+    popup.style.display = 'block';
+    
+    // Button handlers
+    const confirmBtn = popup.querySelector('#confirm-add-marker-btn');
+    const useDefaultBtn = popup.querySelector('#use-default-color-btn');
+    const cancelBtn = popup.querySelector('#cancel-add-marker-btn');
+    
+    // Remove old event listeners by cloning
+    const newConfirmBtn = confirmBtn.cloneNode(true);
+    const newUseDefaultBtn = useDefaultBtn.cloneNode(true);
+    const newCancelBtn = cancelBtn.cloneNode(true);
+    
+    confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
+    useDefaultBtn.parentNode.replaceChild(newUseDefaultBtn, useDefaultBtn);
+    cancelBtn.parentNode.replaceChild(newCancelBtn, cancelBtn);
+    
+    // Confirm: Add marker with selected color
+    newConfirmBtn.addEventListener('click', function() {
+        if (appState.pendingMarkerData) {
+            addMarker(
+                appState.pendingMarkerData.coordinates,
+                appState.pendingMarkerData.name,
+                selectedColor
+            );
+            popup.style.display = 'none';
+            appState.pendingMarkerData = null;
+        }
+    });
+    
+    // Use Default: Add marker with sidebar default color
+    newUseDefaultBtn.addEventListener('click', function() {
+        if (appState.pendingMarkerData) {
+            addMarker(
+                appState.pendingMarkerData.coordinates,
+                appState.pendingMarkerData.name,
+                appState.currentMarkerColor
+            );
+            popup.style.display = 'none';
+            appState.pendingMarkerData = null;
+        }
+    });
+    
+    // Cancel: Close popup without adding marker
+    newCancelBtn.addEventListener('click', function() {
+        popup.style.display = 'none';
+        appState.pendingMarkerData = null;
+    });
+    
+    // Close popup when clicking outside
+    setTimeout(() => {
+        const closeOnOutsideClick = function(e) {
+            if (!popup.contains(e.target) && popup.style.display !== 'none') {
+                popup.style.display = 'none';
+                appState.pendingMarkerData = null;
+                document.removeEventListener('click', closeOnOutsideClick);
+            }
+        };
+        document.addEventListener('click', closeOnOutsideClick);
+    }, 100);
+}
+
 // Expose appState and key functions to global scope for testing
 window.appState = appState;
 window.handleMapClick = handleMapClick;
@@ -3116,4 +4972,7 @@ window.getAreaName = getAreaName;
 window.switchAreaType = switchAreaType;
 window.clearAllAreas = clearAllAreas;
 window.applyColorToArea = applyColorToArea;
+window.addMarker = addMarker;
+window.removeMarker = removeMarker;
+window.clearAllMarkers = clearAllMarkers;
 

@@ -344,6 +344,29 @@ const CONFIG = {
   },
 
   /**
+   * Gemini AI Configuration (for news analysis)
+   * Get your API key from: https://makersuite.google.com/app/apikey
+   */
+  GEMINI: {
+    // Your Gemini API key (get from Google AI Studio)
+    // IMPORTANT: For MVP, this will be in frontend (temporary)
+    // For production, move to backend environment variables
+    API_KEY: 'AIzaSyCndAts3vwZ_OayaWbDDstzEjXtjJupulk', // Replace with your actual key
+    
+    // Model name
+    MODEL: 'gemini-pro',
+    
+    // API base URL
+    BASE_URL: 'https://generativelanguage.googleapis.com/v1beta',
+    
+    // Request timeout (milliseconds)
+    TIMEOUT: 30000,
+    
+    // Enable/disable AI features
+    ENABLED: false, // Set to true after adding API key
+  },
+
+  /**
    * Validation Rules
    */
   VALIDATION: {

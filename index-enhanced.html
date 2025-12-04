@@ -145,6 +145,118 @@
                     </div>
                 </section>
 
+                <!-- Markers Section -->
+                <section class="control-section">
+                    <h3 class="section-title">Markers</h3>
+                    
+                    <!-- Marker Mode Toggle -->
+                    <div class="control-group">
+                        <label class="control-label" style="cursor: pointer; display: flex; align-items: center; gap: 8px;">
+                            <input type="checkbox" id="marker-mode-toggle" style="cursor: pointer;">
+                            <span>Marker Mode: Click map to add markers</span>
+                        </label>
+                        <small style="color: #999; font-size: 11px; display: block; margin-top: 4px;">
+                            Enabled: All map clicks add markers. Disabled: Click boundaries to select areas.
+                        </small>
+                    </div>
+                    
+                    <!-- Marker Icon Selector -->
+                    <div class="control-group">
+                        <div class="control-label">Marker Color</div>
+                        <div id="marker-icon-selector" class="marker-icon-selector">
+                            <!-- Colors will be populated by JavaScript -->
+                        </div>
+                    </div>
+                    
+                    <!-- Marker Shape Selector -->
+                    <div class="control-group">
+                        <div class="control-label">Marker Shape</div>
+                        <div id="marker-shape-selector" class="marker-icon-selector">
+                            <!-- Shapes will be populated by JavaScript -->
+                        </div>
+                    </div>
+                    
+                    <!-- Color Picker Mode Toggle -->
+                    <div class="control-group">
+                        <label class="control-label" style="cursor: pointer; display: flex; align-items: center; gap: 8px;">
+                            <input type="checkbox" id="show-color-picker-on-add" style="cursor: pointer;">
+                            <span>Show color picker when adding markers</span>
+                        </label>
+                        <small style="color: #999; font-size: 11px; display: block; margin-top: 4px;">
+                            Unchecked: Use sidebar color. Checked: Choose color each time.
+                        </small>
+                    </div>
+                    
+                    <!-- Smart Marker Search (coordinates or name) -->
+                    <div class="control-group">
+                        <div class="control-label">Add Marker</div>
+                        <div class="search-container">
+                            <span class="material-icons search-icon">add_location</span>
+                            <input type="text" id="marker-smart-search" class="search-input" placeholder="Search name or paste coordinates (lat,lng)...">
+                        </div>
+                        <div style="font-size: 11px; color: #757575; margin-top: 4px;">
+                            Examples: "Taipei" or "25.0689, 121.5189"
+                        </div>
+                        <div id="marker-search-results" class="search-results"></div>
+                    </div>
+
+                    <!-- Markers List -->
+                    <div class="control-group">
+                        <div class="control-label">Markers (<span id="markers-count">0</span>)</div>
+                        <div id="markers-list" class="selected-areas-list">
+                            <p class="empty-state">No markers added yet</p>
+                        </div>
+                        <button class="btn-secondary" id="clear-markers-btn" style="margin-top: 8px; width: 100%; display: none;">
+                            <span class="material-icons">clear_all</span>
+                            Clear All Markers
+                        </button>
+                    </div>
+                </section>
+
+                <!-- AI Assistant Section -->
+                <section class="control-section">
+                    <div class="section-header">
+                        <h3 class="section-title">
+                            <span class="material-icons">smart_toy</span>
+                            AI Assistant
+                        </h3>
+                    </div>
+                    
+                    <!-- News Input -->
+                    <div class="control-group">
+                        <div class="control-label">Paste News Text</div>
+                        <textarea id="news-input" class="textarea-input" 
+                                  placeholder="Paste news article text here...&#10;&#10;Example:&#10;Taipei officials announced new policies today. The event took place in central Taipei at coordinates 25.0330, 121.5654..."
+                                  rows="6" style="width: 100%; font-size: 13px; line-height: 1.5;"></textarea>
+                        <button class="btn-primary" id="analyze-news-btn" style="width: 100%; margin-top: 8px;">
+                            <span class="material-icons" style="font-size: 18px; vertical-align: middle;">auto_awesome</span>
+                            Analyze with AI
+                        </button>
+                        <div id="ai-loading" style="display: none; text-align: center; padding: 12px; color: #757575;">
+                            <span class="material-icons" style="animation: spin 1s linear infinite;">refresh</span>
+                            Analyzing news text...
+                        </div>
+                    </div>
+                    
+                    <!-- AI Results Preview -->
+                    <div id="ai-results-preview" class="control-group" style="display: none;">
+                        <div class="control-label">Extracted Locations</div>
+                        <div id="ai-results-content" style="background: #f5f5f5; border-radius: 4px; padding: 12px; max-height: 300px; overflow-y: auto;">
+                            <!-- Results will be populated here -->
+                        </div>
+                        <div style="display: flex; gap: 8px; margin-top: 8px;">
+                            <button class="btn-primary" id="apply-ai-results-btn" style="flex: 1;">
+                                <span class="material-icons" style="font-size: 18px; vertical-align: middle;">check</span>
+                                Apply to Map
+                            </button>
+                            <button class="btn-secondary" id="discard-ai-results-btn" style="flex: 1;">
+                                <span class="material-icons" style="font-size: 18px; vertical-align: middle;">close</span>
+                                Discard
+                            </button>
+                        </div>
+                    </div>
+                </section>
+
                 <!-- Advanced Section (Collapsed by default) -->
                 <section class="control-section advanced-section">
                     <div class="section-header" id="advanced-toggle">
@@ -218,6 +330,53 @@
                     <div class="popup-actions">
                         <button class="btn-primary" id="apply-color-btn">Apply</button>
                         <button class="btn-secondary" id="cancel-color-btn">Cancel</button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Marker Icon Picker Popup (appears when clicking marker) -->
+            <div class="marker-icon-picker-popup" id="marker-icon-picker-popup" style="display: none;">
+                <div class="popup-content">
+                    <p class="popup-label">Change marker color and shape</p>
+                    <div style="margin-bottom: 12px;">
+                        <div style="font-size: 12px; color: #757575; margin-bottom: 8px;">Color:</div>
+                        <div class="marker-icon-selector-popup" id="marker-edit-color-selector">
+                            <!-- Colors will be populated by JavaScript -->
+                        </div>
+                    </div>
+                    <div>
+                        <div style="font-size: 12px; color: #757575; margin-bottom: 8px;">Shape:</div>
+                        <div class="marker-icon-selector-popup" id="marker-edit-shape-selector">
+                            <!-- Shapes will be populated by JavaScript -->
+                        </div>
+                    </div>
+                    <div class="popup-actions">
+                        <button class="btn-secondary" id="close-marker-picker-btn">Close</button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Marker Color Picker on Add Popup (appears before creating new marker) -->
+            <div class="marker-color-picker-on-add-popup" id="marker-color-picker-on-add-popup" style="display: none;">
+                <div class="popup-content">
+                    <p class="popup-label">Choose marker color and shape</p>
+                    <p class="popup-area-name" id="marker-add-popup-location" style="font-size: 12px; color: #757575; margin: 4px 0 12px 0;"></p>
+                    <div style="margin-bottom: 12px;">
+                        <div style="font-size: 12px; color: #757575; margin-bottom: 8px;">Color:</div>
+                        <div class="marker-icon-selector-popup" id="marker-color-selector-on-add">
+                            <!-- Colors will be populated by JavaScript -->
+                        </div>
+                    </div>
+                    <div>
+                        <div style="font-size: 12px; color: #757575; margin-bottom: 8px;">Shape:</div>
+                        <div class="marker-icon-selector-popup" id="marker-shape-selector-on-add">
+                            <!-- Shapes will be populated by JavaScript -->
+                        </div>
+                    </div>
+                    <div class="popup-actions">
+                        <button class="btn-primary" id="confirm-add-marker-btn">Add Marker</button>
+                        <button class="btn-secondary" id="use-default-color-btn">Use Default</button>
+                        <button class="btn-secondary" id="cancel-add-marker-btn">Cancel</button>
                     </div>
                 </div>
             </div>
@@ -334,8 +493,21 @@
     <!-- Configuration -->
     <script src="config.js"></script>
     
+    <!-- Optimization Utilities (load before main app) -->
+    <script src="js/utils/debug.js"></script>
+    <script src="js/utils/cache.js"></script>
+    <script src="js/utils/debounce.js"></script>
+    
     <!-- Country Codes -->
     <script src="js/utils/country-codes.js"></script>
+    
+    <!-- Apple-Style Marker Icons -->
+    <script src="js/utils/marker-icons-apple.js"></script>
+    
+    <!-- AI Assistant utilities -->
+    <script src="js/utils/ai-helpers.js"></script>
+    <script src="js/utils/location-resolver.js"></script>
+    <script src="js/services/gemini-service.js"></script>
     
     <!-- Country-specific Data Loader (for state/city boundaries - smaller files) -->
     <script src="js/app-country-loader.js"></script>
@@ -345,6 +517,9 @@
     
     <!-- Enhanced Application -->
     <script src="js/app-enhanced.js"></script>
+    
+    <!-- AI Assistant integration -->
+    <script src="js/features/ai-assistant.js"></script>
 </body>
 </html>
 
