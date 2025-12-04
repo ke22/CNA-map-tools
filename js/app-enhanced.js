@@ -125,8 +125,55 @@ function initializeMap() {
     appState.map.on('click', handleMapClick);
     
     // Handle zoom events to scale markers proportionally
-    appState.map.on('zoom', updateMarkersScale);
-    appState.map.on('zoomend', updateMarkersScale);
+    // CRITICAL: Ensure markers stay locked to coordinates during zoom
+    let zoomUpdateTimeout;
+    appState.map.on('zoom', () => {
+        updateMarkersScale();
+    });
+    
+    appState.map.on('zoomend', () => {
+        updateMarkersScale();
+        // CRITICAL: After zoom completes, force all markers to re-lock to coordinates
+        // This prevents position drift caused by CSS transform scaling
+        appState.markers.forEach(markerInfo => {
+            if (markerInfo.marker && markerInfo.coordinates) {
+                const coords = markerInfo.coordinates;
+                // Remove and re-add marker to force position recalculation
+                const element = markerInfo.element;
+                if (element && markerInfo.marker._element) {
+                    // Temporarily hide to prevent visual glitch
+                    const wasVisible = element.style.display !== 'none';
+                    if (wasVisible) {
+                        element.style.visibility = 'hidden';
+                    }
+                    
+                    // Force position update
+                    markerInfo.marker.setLngLat(coords);
+                    
+                    // Restore visibility after position is set
+                    requestAnimationFrame(() => {
+                        if (wasVisible) {
+                            element.style.visibility = '';
+                        }
+                        // Double-check position
+                        markerInfo.marker.setLngLat(coords);
+                    });
+                } else {
+                    // Simple position update if element not available
+                    markerInfo.marker.setLngLat(coords);
+                }
+            }
+        });
+    });
+    
+    // Ensure markers stay locked during pan
+    appState.map.on('moveend', () => {
+        appState.markers.forEach(markerInfo => {
+            if (markerInfo.marker && markerInfo.coordinates) {
+                markerInfo.marker.setLngLat(markerInfo.coordinates);
+            }
+        });
+    });
     
     // TODO: Re-enable after fixing position accuracy with scaling
     
@@ -233,6 +280,20 @@ async function loadBoundarySourceForType(areaType, createVisibleLayer = false) {
     }
     
     try {
+        // Check one more time if source exists (race condition prevention)
+        if (appState.map.getSource(sourceId)) {
+            console.log(`Source ${sourceId} already exists, skipping add`);
+            appState.sources[sourceTypeKey] = {
+                id: sourceId,
+                loaded: true
+            };
+            if (createVisibleLayer) {
+                createVisibleBoundaryLayer(areaType);
+            }
+            discoverSourceLayers(sourceId, sourceTypeKey);
+            return;
+        }
+        
         // Add source
         appState.map.addSource(sourceId, {
             type: 'vector',
@@ -1278,9 +1339,9 @@ function showColorPickerPopup(point, areaId, areaName, areaType, currentColor) {
     popup.style.display = 'block';
     
     // Setup event listeners
-    const applyHandler = () => {
+    const applyHandler = async () => {
         const selectedColor = colorPicker.value;
-        applyColorToArea(areaId, areaName, areaType, selectedColor);
+        await applyColorToArea(areaId, areaName, areaType, selectedColor);
         hideColorPickerPopup();
     };
     
@@ -1335,7 +1396,7 @@ function hideColorPickerPopup() {
 /**
  * Apply Color to Area
  */
-function applyColorToArea(areaId, areaName, areaType, color) {
+async function applyColorToArea(areaId, areaName, areaType, color) {
     // Check if area already selected
     const existingIndex = appState.selectedAreas.findIndex(
         a => a.id === areaId && a.type === areaType
@@ -1358,7 +1419,7 @@ function applyColorToArea(areaId, areaName, areaType, color) {
             layerId: layerId
         });
         
-        createAreaLayer(areaId, areaName, areaType, color, layerId);
+        await createAreaLayer(areaId, areaName, areaType, color, layerId);
         updateSelectedAreasList();
     }
     
@@ -1376,7 +1437,7 @@ function applyColorToArea(areaId, areaName, areaType, color) {
 /**
  * Create Area Layer with Overlay Support
  */
-function createAreaLayer(areaId, areaName, areaType, color, layerId) {
+async function createAreaLayer(areaId, areaName, areaType, color, layerId) {
     // Check if GADM source exists (priority)
     const gadmSourceId = `gadm-${areaType}`;
     const hasGADMSource = appState.map.getSource(gadmSourceId);
@@ -1395,9 +1456,32 @@ function createAreaLayer(areaId, areaName, areaType, color, layerId) {
         sourceLayer = getSourceLayerForType(areaType);
         filter = createFilterForArea(areaId, areaType, false); // false = Mapbox format
         
-        if (!sourceId || !appState.sources[getSourceTypeKey(areaType)]?.loaded) {
-            console.warn(`Source not loaded for ${areaType}`);
-            return;
+        const sourceTypeKey = getSourceTypeKey(areaType);
+        if (!sourceId || !appState.sources[sourceTypeKey]?.loaded) {
+            console.warn(`Source not loaded for ${areaType}, attempting to load...`);
+            
+            // Try to load the source if it's not loaded
+            if (typeof loadBoundarySourceForType === 'function') {
+                try {
+                    await loadBoundarySourceForType(areaType, false);
+                    // Wait a bit for source to be ready
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                    
+                    // Check again
+                    if (appState.sources[sourceTypeKey]?.loaded) {
+                        console.log(`✅ Source loaded for ${areaType}`);
+                    } else {
+                        console.warn(`⚠️ Source still not loaded for ${areaType} after waiting`);
+                        return;
+                    }
+                } catch (error) {
+                    console.error(`Failed to load source for ${areaType}:`, error);
+                    return;
+                }
+            } else {
+                console.warn(`Cannot load source - loadBoundarySourceForType not available`);
+                return;
+            }
         }
     }
     
@@ -2988,22 +3072,91 @@ function switchMapStyle(styleName) {
     showLoading('Switching map style...');
     const styleUrl = getMapStyleUrl(styleName);
     appState.mapStyle = styleName;
+    
+    // Set a timeout to hide loading if style.load doesn't fire (safety net)
+    const loadingTimeout = setTimeout(() => {
+        console.warn('⚠️  Style load timeout - hiding loading overlay anyway');
+        hideLoading();
+        showToast('Map style switched (some features may take a moment to load)', 'info');
+        // Even if timeout, still try to reapply areas after a delay
+        setTimeout(async () => {
+            try {
+                await reapplySelectedAreas();
+                updateMarkersScale();
+            } catch (error) {
+                console.error('Error reapplying areas after timeout:', error);
+            }
+        }, 2000);
+    }, 15000); // 15 second timeout (increased from 10)
+    
     appState.map.setStyle(styleUrl);
     
     appState.map.once('style.load', function() {
-        // Ensure globe projection is maintained after style change
-        appState.map.setProjection('globe');
+        clearTimeout(loadingTimeout); // Clear timeout since style loaded successfully
         
-        // Set space-like background for Globe Sky (behind the earth only)
-        setGlobeSkyBackground();
-        
-        // Reload boundaries after style change
-        loadBoundarySources();
-        // Reapply selected areas
-        reapplySelectedAreas();
-        // Refresh label layer cache (new style = new label layers)
-        refreshLabelLayerCache();
+        try {
+            // CRITICAL: Clear source state when style changes
+            // All sources are removed when style changes, so reset our tracking
+            console.log('🔄 Clearing source state after style change...');
+            appState.sources = {
+                adm0: null,
+                adm1: null,
+                adm2: null
+            };
+            
+            // Ensure globe projection is maintained after style change
+            appState.map.setProjection('globe');
+            
+            // Set space-like background for Globe Sky (behind the earth only)
+            setGlobeSkyBackground();
+            
+            // Reload boundaries after style change and wait for them to load before reapplying
+            setTimeout(async () => {
+                try {
+                    // Load boundary sources first
+                    loadBoundarySources();
+                    
+                    // Wait a bit for sources to start loading, then reapply areas
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                    
+                    // Reapply selected areas (will wait for sources if needed)
+                    await reapplySelectedAreas();
+                    
+                    // Also reapply markers scale after style change
+                    updateMarkersScale();
+                } catch (error) {
+                    console.error('Error loading boundary sources or reapplying areas:', error);
+                    // Still try to reapply areas even if source loading fails
+                    try {
+                        await reapplySelectedAreas();
+                    } catch (reapplyError) {
+                        console.error('Error reapplying selected areas:', reapplyError);
+                    }
+                }
+            }, 100);
+            
+            // Refresh label layer cache (new style = new label layers)
+            try {
+                refreshLabelLayerCache();
+            } catch (error) {
+                console.error('Error refreshing label cache:', error);
+            }
+            
+            hideLoading();
+            console.log('✅ Map style switched successfully');
+        } catch (error) {
+            console.error('Error during style switch:', error);
+            hideLoading();
+            showToast('Map style switched, but some features may need to reload', 'warning');
+        }
+    });
+    
+    // Also handle style errors
+    appState.map.once('error', function(e) {
+        clearTimeout(loadingTimeout);
+        console.error('Map style error:', e);
         hideLoading();
+        showToast('Error switching map style. Please try again.', 'error');
     });
 }
 
@@ -3080,10 +3233,33 @@ function switchBoundaryMode(mode) {
 /**
  * Reapply Selected Areas (after style change)
  */
-function reapplySelectedAreas() {
-    appState.selectedAreas.forEach(area => {
-        createAreaLayer(area.id, area.name, area.type, area.color, area.layerId);
-    });
+async function reapplySelectedAreas() {
+    if (!appState.selectedAreas || appState.selectedAreas.length === 0) {
+        return;
+    }
+    
+    console.log(`🔄 Reapplying ${appState.selectedAreas.length} selected areas after style change...`);
+    
+    // Wait for boundary sources to be ready
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    for (const area of appState.selectedAreas) {
+        try {
+            // Ensure source is loaded before creating layer
+            if (typeof loadBoundarySourceForType === 'function') {
+                await loadBoundarySourceForType(area.type, false);
+            }
+            
+            // Small delay between areas to ensure proper loading
+            await createAreaLayer(area.id, area.name, area.type, area.color, area.layerId);
+            await new Promise(resolve => setTimeout(resolve, 100));
+        } catch (error) {
+            console.error(`Error reapplying area ${area.name} (${area.type}):`, error);
+            // Continue with next area even if one fails
+        }
+    }
+    
+    console.log('✅ Finished reapplying selected areas');
 }
 
 /**
@@ -4519,6 +4695,24 @@ function updateMarkersScale() {
             baseTransform = 'rotate(-45deg)';
         }
         
+        // CRITICAL: Match transform-origin with anchor point to prevent position drift
+        // The anchor point determines where Mapbox positions the marker
+        // The transform-origin determines where CSS transforms are applied from
+        // They must match to prevent position drift during scaling
+        let transformOrigin = 'center center';
+        const anchor = (typeof getMarkerAnchor !== 'undefined') 
+            ? getMarkerAnchor(shape) 
+            : 'center';
+        
+        // Match transform-origin with anchor point
+        if (anchor === 'bottom') {
+            transformOrigin = 'bottom center'; // Scale from bottom center (the anchor point)
+        } else if (anchor === 'center') {
+            transformOrigin = 'center center'; // Scale from center (the anchor point)
+        } else {
+            transformOrigin = 'center center'; // Default
+        }
+        
         // Apply scale transform while preserving rotation
         // Store the scale on the element for hover effects
         element.dataset.currentScale = clampedScale;
@@ -4534,7 +4728,38 @@ function updateMarkersScale() {
         element.style.transition = 'none';
         
         element.style.transform = transformValue;
-        element.style.transformOrigin = 'center center';
+        element.style.transformOrigin = transformOrigin; // Use matched transform-origin
+        
+        // CRITICAL: After scaling, force marker position to be recalculated
+        // Even with matched transform-origin, we need to ensure position stays locked
+        const currentCoords = markerInfo.coordinates;
+        if (currentCoords && markerInfo.marker) {
+            // Store current position before transform
+            const beforeTransform = markerInfo.marker.getLngLat();
+            
+            // Apply transform first
+            // Then immediately force position recalculation
+            markerInfo.marker.setLngLat(currentCoords);
+            
+            // Use requestAnimationFrame to ensure position is set after transform is applied
+            requestAnimationFrame(() => {
+                // Force position update after browser applies transform
+                markerInfo.marker.setLngLat(currentCoords);
+                
+                // Double-check position after another frame
+                requestAnimationFrame(() => {
+                    const afterTransform = markerInfo.marker.getLngLat();
+                    // Verify position hasn't drifted (allow small floating point errors)
+                    const driftLng = Math.abs(afterTransform.lng - currentCoords[0]);
+                    const driftLat = Math.abs(afterTransform.lat - currentCoords[1]);
+                    
+                    if (driftLng > 0.00001 || driftLat > 0.00001) {
+                        // Position drifted, force correction
+                        markerInfo.marker.setLngLat(currentCoords);
+                    }
+                });
+            });
+        }
         
         // Restore transition after a brief moment
         requestAnimationFrame(() => {

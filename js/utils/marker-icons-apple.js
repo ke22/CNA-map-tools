@@ -42,6 +42,11 @@ function createAppleMarker(color = '#007AFF', shape = 'pin', size = 24) {
     el.style.margin = '0';
     el.style.padding = '0';
     el.style.display = 'block';
+    // Ensure marker stays locked to coordinates (no position interference)
+    el.style.left = '0';
+    el.style.top = '0';
+    el.style.right = 'auto';
+    el.style.bottom = 'auto';
     
     // Apple-style pin shape
     if (shape === 'pin') {

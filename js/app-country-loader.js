@@ -45,11 +45,36 @@ async function loadCountryBoundarySource(countryCode, areaType, createVisibleLay
         const geoJson = await response.json();
         console.log(`✅ Loaded ${geoJson.features.length} ${areaType} features for ${countryCode}`);
         
-        // Add source to map
-        appState.map.addSource(sourceId, {
-            type: 'geojson',
-            data: geoJson
-        });
+        // Check again if source exists before adding (race condition prevention)
+        if (appState.map.getSource(sourceId)) {
+            console.log(`⚠️ Source ${sourceId} already exists, updating data instead...`);
+            const existingSource = appState.map.getSource(sourceId);
+            if (existingSource && existingSource.type === 'geojson') {
+                existingSource.setData(geoJson);
+                console.log(`✅ Updated existing source data for ${sourceId}`);
+            }
+        } else {
+            // Add source to map
+            try {
+                appState.map.addSource(sourceId, {
+                    type: 'geojson',
+                    data: geoJson
+                });
+            } catch (addError) {
+                // If source exists, try to update it
+                if (addError.message && addError.message.includes('already exists')) {
+                    console.log(`Source ${sourceId} exists, updating data...`);
+                    const source = appState.map.getSource(sourceId);
+                    if (source && source.type === 'geojson') {
+                        source.setData(geoJson);
+                    } else {
+                        throw addError;
+                    }
+                } else {
+                    throw addError;
+                }
+            }
+        }
         
         // Update app state
         appState.sources[sourceTypeKey] = {

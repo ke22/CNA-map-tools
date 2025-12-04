@@ -1098,11 +1098,14 @@ body {
     padding: 0 !important;
     box-sizing: border-box !important;
     pointer-events: auto !important;
-    /* Prevent any interference with Mapbox positioning */
+    /* Transform origin will be set dynamically to match anchor point */
+    /* Default to center, but will be overridden by inline style */
     transform-origin: center center !important;
     will-change: transform;
     /* Ensure transform can be applied dynamically */
     transition: transform 0.2s ease;
+    /* CRITICAL: Prevent any layout shifts that could affect positioning */
+    contain: layout style paint;
 }
 
 /* Custom Marker Styles */

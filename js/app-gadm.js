@@ -138,25 +138,81 @@ async function loadGADMSource(areaType) {
  * Add GADM GeoJSON as Mapbox source
  */
 function addGADMSourceToMap(sourceId, geoJson, areaType, sourceTypeKey) {
-    // Remove existing source if present
-    if (appState.map.getSource(sourceId)) {
+    // Check if source already exists
+    const existingSource = appState.map.getSource(sourceId);
+    
+    if (existingSource) {
+        // Source already exists - check if it's the same data
+        console.log(`⚠️ Source ${sourceId} already exists, checking if update is needed...`);
+        
         try {
-            appState.map.removeSource(sourceId);
-        } catch (e) {
-            // Source might have layers, remove them first
-            const layerId = `visible-boundaries-${areaType}`;
-            if (appState.map.getLayer(layerId)) {
-                appState.map.removeLayer(layerId);
+            // If source exists and has data, we can reuse it or update it
+            // For GeoJSON sources, we can update the data
+            if (existingSource.type === 'geojson') {
+                // Update existing source data
+                existingSource.setData(geoJson);
+                console.log(`✅ Updated existing GADM source: ${sourceId}`);
+                
+                // Mark as loaded
+                appState.sources[sourceTypeKey] = {
+                    id: sourceId,
+                    loaded: true,
+                    type: 'geojson',
+                    areaType: areaType
+                };
+                
+                console.log(`✅ GADM source updated: ${sourceId} (${geoJson.features?.length || 0} features)`);
+                return; // Exit early, source already exists and updated
             }
+        } catch (updateError) {
+            console.warn(`Failed to update existing source ${sourceId}, will remove and recreate:`, updateError);
+            // Fall through to remove and recreate
+        }
+        
+        // If we get here, need to remove and recreate
+        try {
+            // Try to remove layers that use this source first
+            const layerIds = ['visible-boundaries-state', 'visible-boundaries-city'];
+            layerIds.forEach(layerId => {
+                try {
+                    if (appState.map.getLayer(layerId)) {
+                        appState.map.removeLayer(layerId);
+                    }
+                } catch (e) {
+                    // Layer might not exist, ignore
+                }
+            });
+            
+            // Now remove the source
             appState.map.removeSource(sourceId);
+            console.log(`✅ Removed existing source ${sourceId} for recreation`);
+        } catch (removeError) {
+            console.error(`Failed to remove existing source ${sourceId}:`, removeError);
+            // Continue anyway - might work if source is partially removed
         }
     }
     
-    // Add GeoJSON source
-    appState.map.addSource(sourceId, {
-        type: 'geojson',
-        data: geoJson
-    });
+    // Add GeoJSON source (either new or after removal)
+    try {
+        appState.map.addSource(sourceId, {
+            type: 'geojson',
+            data: geoJson
+        });
+    } catch (addError) {
+        // If source still exists, try to update it instead
+        if (addError.message && addError.message.includes('already exists')) {
+            console.log(`Source ${sourceId} still exists, updating data instead...`);
+            const source = appState.map.getSource(sourceId);
+            if (source && source.type === 'geojson') {
+                source.setData(geoJson);
+                console.log(`✅ Updated source data for ${sourceId}`);
+            } else {
+                throw addError; // Re-throw if we can't handle it
+            }
+        } else {
+            throw addError; // Re-throw other errors
+        }
+    }
     
     // Mark as loaded
     appState.sources[sourceTypeKey] = {

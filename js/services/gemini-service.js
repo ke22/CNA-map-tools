@@ -96,12 +96,22 @@ async function analyzeNewsWithGemini(newsText) {
     
     // Check if using backend proxy (production) or direct API (development)
     const useBackendProxy = CONFIG.GEMINI.USE_BACKEND_PROXY !== false; // Default to true
-    const proxyEndpoint = CONFIG.GEMINI.PROXY_ENDPOINT || '/api/gemini/generateContent';
+    let proxyEndpoint = CONFIG.GEMINI.PROXY_ENDPOINT || '/api/gemini/generateContent';
 
     let url, headers;
 
     if (useBackendProxy) {
         // Use backend proxy (production mode - API key is on server)
+        // If proxyEndpoint is a relative path, convert to absolute URL pointing to port 8000
+        if (proxyEndpoint.startsWith('/')) {
+            // Check if we're running on a different port (e.g., VS Code Live Server on 5500)
+            const currentPort = window.location.port;
+            if (currentPort && currentPort !== '8000') {
+                // Use absolute URL to point to our Node.js server on port 8000
+                proxyEndpoint = `http://localhost:8000${proxyEndpoint}`;
+                console.log(`⚠️  Detected different port (${currentPort}), using absolute URL: ${proxyEndpoint}`);
+            }
+        }
         url = proxyEndpoint;
         headers = {
             'Content-Type': 'application/json'
