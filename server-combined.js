@@ -15,6 +15,27 @@ const fs = require('fs');
 const path = require('path');
 const url = require('url');
 
+// Load environment variables from .env file if it exists
+try {
+    const envFile = path.join(__dirname, '.env');
+    if (fs.existsSync(envFile)) {
+        const envContent = fs.readFileSync(envFile, 'utf8');
+        envContent.split('\n').forEach(line => {
+            const trimmed = line.trim();
+            if (trimmed && !trimmed.startsWith('#')) {
+                const [key, ...valueParts] = trimmed.split('=');
+                if (key && valueParts.length > 0) {
+                    const value = valueParts.join('=').replace(/^["']|["']$/g, ''); // Remove quotes
+                    process.env[key.trim()] = value.trim();
+                }
+            }
+        });
+        console.log('✅ Loaded .env file');
+    }
+} catch (error) {
+    console.warn('⚠️  Could not load .env file:', error.message);
+}
+
 // Import Gemini proxy functionality
 const geminiProxy = require('./server-gemini-proxy.js');
 
@@ -73,7 +94,9 @@ const server = http.createServer((req, res) => {
     }
 
     // Handle static file serving
-    let filePath = '.' + req.url;
+    // Parse URL to get pathname (strip query parameters)
+    const urlPath = parsedUrl.pathname;
+    let filePath = '.' + urlPath;
     
     // Default to index.html if root
     if (filePath === './') {
