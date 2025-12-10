@@ -1,0 +1,46 @@
+#!/bin/bash
+
+# GitHub Pages 设置指南脚本
+
+echo "═══════════════════════════════════════════════════════════════"
+echo "🌐 GitHub Pages 预览链接设置指南"
+echo "═══════════════════════════════════════════════════════════════"
+echo ""
+echo "📋 设置步骤："
+echo ""
+echo "1. 打开 GitHub 仓库："
+echo "   https://github.com/ke22/CNA-map-tools"
+echo ""
+echo "2. 点击右上角 'Settings'"
+echo ""
+echo "3. 左侧菜单找到 'Pages'"
+echo ""
+echo "4. 在 'Source' 部分："
+echo "   - 选择 'Deploy from a branch'"
+echo "   - Branch: 选择 'feature/genai'"
+echo "   - Folder: 选择 '/ (root)'"
+echo ""
+echo "5. 点击 'Save'"
+echo ""
+echo "6. 等待 1-2 分钟部署完成"
+echo ""
+echo "═══════════════════════════════════════════════════════════════"
+echo "🔗 预览链接（设置完成后）："
+echo ""
+echo "   https://ke22.github.io/CNA-map-tools/"
+echo ""
+echo "═══════════════════════════════════════════════════════════════"
+echo "⚠️  注意事项："
+echo ""
+echo "   - AI 功能不可用（需要后端服务器）"
+echo "   - 地图和标注功能可用"
+echo "   - 需要配置 Mapbox Token"
+echo ""
+echo "═══════════════════════════════════════════════════════════════"
+echo ""
+echo "需要我帮你打开 GitHub 仓库页面吗？(y/n)"
+read -r response
+if [[ "$response" =~ ^[Yy]$ ]]; then
+    open "https://github.com/ke22/CNA-map-tools/settings/pages"
+fi
+
