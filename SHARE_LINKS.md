@@ -128,11 +128,16 @@ GitHub: https://github.com/ke22/CNA-map-tools
 - **feature/genai 分支**: https://github.com/ke22/CNA-map-tools/tree/feature/genai
 - **main 分支**: https://github.com/ke22/CNA-map-tools/tree/main
 
+### 预览链接
+- **GitHub Pages（如果已启用）**: https://ke22.github.io/CNA-map-tools/
+- **预览链接指南**: https://github.com/ke22/CNA-map-tools/blob/feature/genai/PREVIEW_LINKS.md
+
 ### 文档链接
 - **快速开始**: https://github.com/ke22/CNA-map-tools/blob/feature/genai/GETTING_STARTED.md
 - **设置指南**: https://github.com/ke22/CNA-map-tools/blob/feature/genai/SETUP_GUIDE.md
 - **完整说明**: https://github.com/ke22/CNA-map-tools/blob/feature/genai/README_FOR_SHARING.md
 - **分享模板**: https://github.com/ke22/CNA-map-tools/blob/feature/genai/SHARE_MESSAGE_TEMPLATE.md
+- **预览链接**: https://github.com/ke22/CNA-map-tools/blob/feature/genai/PREVIEW_LINKS.md
 
 ### 外部链接
 - **Mapbox 注册**: https://account.mapbox.com/access-tokens/
@@ -145,6 +150,7 @@ GitHub: https://github.com/ke22/CNA-map-tools
 1. **给开发者** → 分享仓库链接 + GETTING_STARTED.md
 2. **快速演示** → 直接分享 GETTING_STARTED.md 链接
 3. **完整分享** → 复制 SHARE_MESSAGE_TEMPLATE.md 中的模板
+4. **在线预览** → 设置 GitHub Pages 后分享预览链接
 
 ---
 
@@ -159,4 +165,5 @@ GitHub: https://github.com/ke22/CNA-map-tools
 ---
 
 **最后更新**: 刚刚推送完成 ✅
+
 
