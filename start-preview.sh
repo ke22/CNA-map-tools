@@ -17,13 +17,32 @@ fi
 # 检查服务器是否已运行
 if lsof -Pi :8000 -sTCP:LISTEN -t >/dev/null ; then
     echo "✅ 服务器已在运行 (端口 8000)"
+    EXISTING_PID=$(lsof -ti :8000)
+    echo "   PID: $EXISTING_PID"
 else
+    # 检查端口是否被其他进程占用
+    PORT_USER=$(lsof -ti :8000 2>/dev/null)
+    if [ ! -z "$PORT_USER" ]; then
+        echo "⚠️  端口 8000 被其他进程占用 (PID: $PORT_USER)"
+        echo "   正在停止该进程..."
+        kill $PORT_USER 2>/dev/null
+        sleep 2
+    fi
+    
     echo "📦 启动服务器..."
     export $(grep -v '^#' .env | xargs) 2>/dev/null
-    node server-combined.js > /dev/null 2>&1 &
+    nohup node server-combined.js > server.log 2>&1 &
     SERVER_PID=$!
-    echo "✅ 服务器已启动 (PID: $SERVER_PID)"
-    sleep 2
+    sleep 3
+    
+    # 检查服务器是否成功启动
+    if ps -p $SERVER_PID > /dev/null 2>&1 && lsof -Pi :8000 -sTCP:LISTEN -t >/dev/null ; then
+        echo "✅ 服务器已启动 (PID: $SERVER_PID)"
+    else
+        echo "❌ 服务器启动失败，查看错误："
+        tail -10 server.log 2>/dev/null || echo "无法读取日志"
+        exit 1
+    fi
 fi
 
 echo ""
