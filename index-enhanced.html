@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>地圖工具 - Map Tool</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🗺️</text></svg>">
+    
+    <!-- Mapbox GL JS -->
+    <script src='https://api.mapbox.com/mapbox-gl-js/v3.2.0/mapbox-gl.js'></script>
+    <link href='https://api.mapbox.com/mapbox-gl-js/v3.2.0/mapbox-gl.css' rel='stylesheet' />
+    
+    <!-- Material Icons -->
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+    
+    <!-- Material Design Components (CDN) -->
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
+    
+    <!-- Custom Styles -->
+    <link rel="stylesheet" href="css/styles-enhanced.css">
+</head>
+<body>
+    <!-- Header -->
+    <header class="app-header">
+        <div class="header-content">
+            <h1 class="app-title">
+                <span class="material-icons">map</span>
+                地圖工具
+            </h1>
+            <div class="header-actions">
+                <button class="btn-primary" id="export-btn" title="Export map for infographics">
+                    <span class="material-icons">download</span>
+                    <span class="btn-text">Export Image</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <div class="app-container">
+        <!-- Side Panel -->
+        <aside class="side-panel" id="side-panel">
+            <div class="panel-header">
+                <h2>Controls</h2>
+                <button class="icon-btn" id="toggle-panel" title="Toggle panel">
+                    <span class="material-icons">chevron_left</span>
+                </button>
+            </div>
+
+            <div class="panel-content">
+                <!-- Unified Search Section -->
+                <section class="control-section unified-search-section">
+                    <h3 class="section-title">🔍 搜索</h3>
+                    <div class="control-group">
+                        <div class="search-container unified-search-container">
+                            <span class="material-icons search-icon">search</span>
+                            <input type="text" id="unified-search" class="search-input" 
+                                   placeholder="搜尋地點、座標、國家或行政區...">
+                            <button class="icon-btn" id="clear-unified-search" title="清除搜索" style="display: none;">
+                                <span class="material-icons">close</span>
+                            </button>
+                        </div>
+                        <div id="unified-search-results" class="search-results"></div>
+                        <small style="color: #999; font-size: 11px; display: block; margin-top: 4px;">
+                            支援：地名、座標 (25.0330,121.5654)、國家、行政區
+                        </small>
+                    </div>
+                    
+                    <!-- Boundary Line Visibility Toggles (Separate controls for country and admin boundaries) -->
+                    <div class="control-group boundary-line-visibility-group" id="boundary-line-visibility-group" style="margin-top: 12px;">
+                        <div class="control-label" style="font-size: 12px;">顯示邊界線</div>
+                        
+                        <!-- Country Boundary Toggle -->
+                        <label style="display: flex; align-items: center; cursor: pointer; margin-top: 8px;">
+                            <input type="checkbox" id="country-boundary-visibility-toggle" class="toggle-input" checked style="margin-right: 8px;">
+                            <span>隱藏國家邊界線</span>
+                        </label>
+                        
+                        <!-- Admin Boundary Toggle -->
+                        <label style="display: flex; align-items: center; cursor: pointer; margin-top: 8px;">
+                            <input type="checkbox" id="admin-boundary-visibility-toggle" class="toggle-input" checked style="margin-right: 8px;">
+                            <span>隱藏行政區邊界線</span>
+                        </label>
+                        
+                        <small style="color: #999; font-size: 11px; display: block; margin-top: 8px;">
+                            勾選後隱藏對應邊界線（不影響點擊檢測）
+                        </small>
+                    </div>
+                </section>
+
+                <!-- Unified Content List Section (Moved to below search) -->
+                <section class="control-section content-list-section">
+                    <h3 class="section-title">
+                        📋 我的地圖內容
+                        <span class="content-stats" style="font-size: 12px; font-weight: normal; color: #999; margin-left: 8px;">
+                            (<span id="areas-count">0</span> 區域 | <span id="markers-count-unified">0</span> 標記)
+                        </span>
+                    </h3>
+                    
+                    <!-- Filter Tabs -->
+                    <div class="control-group">
+                        <div class="button-group filter-tabs" style="margin-bottom: 8px;">
+                            <button class="btn-toggle active filter-tab" data-filter="all" title="顯示全部">
+                                <span>全部</span>
+                            </button>
+                            <button class="btn-toggle filter-tab" data-filter="area" title="僅顯示區域">
+                                <span class="material-icons" style="font-size: 16px;">map</span>
+                                <span>區域</span>
+                            </button>
+                            <button class="btn-toggle filter-tab" data-filter="marker" title="僅顯示標記">
+                                <span class="material-icons" style="font-size: 16px;">place</span>
+                                <span>標記</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Unified Content List -->
+                    <div class="control-group">
+                        <div id="unified-content-list" class="selected-areas-list">
+                            <p class="empty-state">點擊地圖或使用搜索添加內容</p>
+                        </div>
+                        <div style="display: flex; gap: 8px; margin-top: 8px;">
+                            <button class="btn-secondary" id="clear-areas-btn" style="flex: 1;">
+                                <span class="material-icons" style="font-size: 16px;">clear_all</span>
+                                清除區域
+                            </button>
+                            <button class="btn-secondary" id="clear-markers-btn-unified" style="flex: 1; display: none;">
+                                <span class="material-icons" style="font-size: 16px;">clear_all</span>
+                                清除標記
+                            </button>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Work Mode Section -->
+                <section class="control-section work-mode-section">
+                    <h3 class="section-title">📍 工作模式</h3>
+                    
+                    <!-- Mode Selector (Simplified) -->
+                    <div class="control-group">
+                        <div class="button-group mode-selector">
+                            <button class="btn-toggle active mode-btn" data-mode="area" title="區域模式：選擇國家或行政區">
+                                <span class="material-icons">map</span>
+                                <span>區域模式</span>
+                            </button>
+                            <button class="btn-toggle mode-btn" data-mode="marker" title="標記模式：在地圖上添加標記">
+                                <span class="material-icons">place</span>
+                                <span>標記模式</span>
+                            </button>
+                            <button class="btn-toggle mode-btn" data-mode="text" title="文字模式：在地圖上添加文字標註">
+                                <span class="material-icons">text_fields</span>
+                                <span>文字模式</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Area Mode Options (shown when area mode is active) -->
+                    <div id="area-mode-options" class="control-group mode-options active">
+                        <div class="control-label">區域類型</div>
+                        <div class="button-group">
+                            <button class="btn-toggle active" data-type="country" title="國家邊界">
+                                <span class="material-icons">public</span>
+                                <span>國家</span>
+                            </button>
+                            <button class="btn-toggle" data-type="administration" title="行政區（包含第一級和第二級行政區）">
+                                <span class="material-icons">account_tree</span>
+                                <span>行政區</span>
+                            </button>
+                        </div>
+
+                        <!-- Administration Level Selector (only visible in administration mode) -->
+                        <div class="control-group admin-level-group" id="admin-level-group" style="display: none; margin-top: 8px;">
+                            <div class="control-label" style="font-size: 12px;">行政層級</div>
+                            <div class="button-group">
+                            <button class="btn-toggle" data-level="state" title="省/州級別">
+                                <span>省/州</span>
+                            </button>
+                            <button class="btn-toggle active" data-level="city" title="市級別（預設最大層級）">
+                                <span>市</span>
+                            </button>
+                            <button class="btn-toggle" data-level="both" title="自動">
+                                <span>自動</span>
+                            </button>
+                            </div>
+                        </div>
+
+                        <!-- Overlay Mode Toggle (only visible in administration mode) -->
+                        <div class="control-group overlay-toggle-group" id="overlay-toggle-group" style="display: none; margin-top: 8px;">
+                            <label class="control-label" style="font-size: 12px; cursor: pointer;">
+                                <input type="checkbox" id="overlay-mode-toggle" class="toggle-input">
+                                <span class="toggle-label">疊加模式</span>
+                            </label>
+                        </div>
+
+                        <!-- Boundary Style Selector (Fill/Outline) -->
+                        <div class="control-group" style="margin-top: 8px;">
+                            <div class="control-label" style="font-size: 12px;">區域樣式</div>
+                            <div class="button-group">
+                                <button class="btn-toggle active" id="boundary-style-fill" data-style="fill" title="填充（預設）">
+                                    <span class="material-icons" style="font-size: 16px;">format_color_fill</span>
+                                    <span>填充</span>
+                                </button>
+                                <button class="btn-toggle" id="boundary-style-outline" data-style="outline" title="輪廓">
+                                    <span class="material-icons" style="font-size: 16px;">square_foot</span>
+                                    <span>輪廓</span>
+                                </button>
+                            </div>
+                            <small style="color: #999; font-size: 11px; display: block; margin-top: 4px;">
+                                適用於國家與行政區範圍
+                            </small>
+                        </div>
+                    </div>
+
+                    <!-- Marker Mode Options (shown when marker mode is active) -->
+                    <div id="marker-mode-options" class="control-group mode-options" style="display: none;">
+                        <div class="control-label">標記設置</div>
+                        <small style="color: #999; font-size: 11px; display: block; margin-bottom: 8px;">
+                            點擊地圖添加標記，或使用上方搜索框
+                        </small>
+                        
+                        <!-- Image Overlay Upload -->
+                        <div class="control-group" style="margin-top: 12px;">
+                            <div class="control-label" style="font-size: 12px;">地圖圖示</div>
+                            <input type="file" id="image-overlay-input" accept="image/*" style="display: none;">
+                            <button class="btn-secondary" id="upload-image-btn" style="width: 100%; margin-bottom: 4px;">
+                                <span class="material-icons" style="font-size: 16px;">image</span>
+                                上傳圖片
+                            </button>
+                            <button class="btn-secondary" id="paste-image-btn" style="width: 100%;">
+                                <span class="material-icons" style="font-size: 16px;">content_paste</span>
+                                貼上圖片
+                            </button>
+                            <small style="color: #999; font-size: 11px; display: block; margin-top: 4px;">
+                                可上傳或貼上圖片作為地圖覆蓋層
+                            </small>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Style Tools Section (Always visible, context-aware) -->
+                <section class="control-section style-tools-section">
+                    <h3 class="section-title">🎨 樣式工具</h3>
+                    
+                    <!-- Color Picker (Always visible) -->
+                    <div class="control-group">
+                        <label class="control-label" for="color-picker">顏色</label>
+                        <div class="color-picker-container">
+                            <input type="color" id="color-picker" value="#6CA7A1" class="color-input" title="點擊選擇顏色">
+                            <div style="display: flex; align-items: center; gap: 8px; margin-top: 8px;">
+                                <input type="text" id="color-hex-input" value="#6CA7A1" class="color-hex-input" placeholder="#6CA7A1" maxlength="7">
+                                <small style="color: #999; font-size: 11px;">或使用預設</small>
+                            </div>
+                            <div class="color-presets" style="margin-top: 8px;">
+                                <button class="color-preset active" data-color="#6CA7A1" title="Tropical Teal" style="background: #6CA7A1;"></button>
+                                <button class="color-preset" data-color="#496F96" title="Rich Cerulean" style="background: #496F96;"></button>
+                                <button class="color-preset" data-color="#E05C5A" title="Lobster Pink" style="background: #E05C5A;"></button>
+                                <button class="color-preset" data-color="#EDBD76" title="Sunlit Clay" style="background: #EDBD76;"></button>
+                                <button class="color-preset" data-color="#E8DFCF" title="Bone" style="background: #E8DFCF;"></button>
+                                <button class="color-preset" data-color="#B5CBCD" title="Ash Grey" style="background: #B5CBCD;"></button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Ocean Color Picker -->
+                    <div class="control-group">
+                        <label class="control-label" for="ocean-color-picker">海洋顏色</label>
+                        <div class="color-picker-container">
+                            <input type="color" id="ocean-color-picker" value="#C1D3E2" class="color-input" title="點擊選擇海洋顏色">
+                            <div style="display: flex; align-items: center; gap: 8px; margin-top: 8px;">
+                                <input type="text" id="ocean-color-hex-input" value="#C1D3E2" class="color-hex-input" placeholder="#C1D3E2" maxlength="7">
+                                <button class="btn-secondary" id="reset-ocean-color" style="padding: 4px 8px; font-size: 11px;">重置</button>
+                            </div>
+                            <small style="color: #999; font-size: 11px; display: block; margin-top: 4px;">
+                                自訂海洋和湖泊的顏色
+                            </small>
+                        </div>
+                    </div>
+
+                    <!-- Marker Shape Selector (Only visible in marker mode) -->
+                    <div id="marker-shape-group" class="control-group" style="display: none;">
+                        <div class="control-label">標記形狀</div>
+                        <div id="marker-shape-selector" class="marker-icon-selector">
+                            <!-- Shapes will be populated by JavaScript -->
+                        </div>
+                    </div>
+                </section>
+
+
+                <!-- Legacy sections kept for backward compatibility (hidden by default) -->
+                <!-- These will be gradually migrated to the unified interface -->
+                <section class="control-section legacy-section" style="display: none;">
+                    <!-- Old area-search (kept for compatibility) -->
+                    <input type="text" id="area-search" style="display: none;">
+                    <div id="search-results" style="display: none;"></div>
+                    
+                    <!-- Old marker-smart-search (kept for compatibility) -->
+                    <input type="text" id="marker-smart-search" style="display: none;">
+                    <div id="marker-search-results" style="display: none;"></div>
+                    
+                    <!-- Old marker-mode-toggle (kept for compatibility) -->
+                    <input type="checkbox" id="marker-mode-toggle" style="display: none;" checked>
+                    
+                    <!-- Old selected-areas-list (kept for compatibility) -->
+                    <div id="selected-areas-list" style="display: none;"></div>
+                    <div id="markers-list" style="display: none;"></div>
+                </section>
+
+                <!-- AI Assistant Section -->
+                <section class="control-section">
+                    <div class="section-header">
+                        <h3 class="section-title">
+                            <span class="material-icons">smart_toy</span>
+                            AI Assistant
+                        </h3>
+                    </div>
+                    
+                    <!-- News Input -->
+                    <div class="control-group">
+                        <div class="control-label">Paste News Text</div>
+                        <textarea id="news-input" class="textarea-input" 
+                                  placeholder="请粘贴新闻文章内容...&#10;&#10;示例：&#10;台北市政府今天宣布新政策。活动在台北市中心举行，坐标 25.0330, 121.5654..."
+                                  rows="6" style="width: 100%; font-size: 13px; line-height: 1.5;"></textarea>
+                        <button class="btn-primary" id="analyze-news-btn" style="width: 100%; margin-top: 8px;">
+                            <span class="material-icons" style="font-size: 18px; vertical-align: middle;">auto_awesome</span>
+                            AI 分析新闻
+                        </button>
+                        <div id="ai-loading" style="display: none; text-align: center; padding: 12px; color: #757575;">
+                            <span class="material-icons" style="animation: spin 1s linear infinite;">refresh</span>
+                            正在分析新闻文本...
+                        </div>
+                    </div>
+                    
+                    <!-- AI Results Preview -->
+                    <div id="ai-results-preview" class="control-group" style="display: none;">
+                        <div class="control-label">提取结果预览</div>
+                        <div id="ai-results-content" style="background: #f5f5f5; border-radius: 4px; padding: 12px; max-height: 400px; overflow-y: auto;">
+                            <!-- Results will be populated here -->
+                        </div>
+                        <div style="display: flex; gap: 8px; margin-top: 8px;">
+                            <button class="btn-primary" id="apply-ai-results-btn" style="flex: 1;">
+                                <span class="material-icons" style="font-size: 18px; vertical-align: middle;">check</span>
+                                应用到地图
+                            </button>
+                            <button class="btn-secondary" id="discard-ai-results-btn" style="flex: 1;">
+                                <span class="material-icons" style="font-size: 18px; vertical-align: middle;">close</span>
+                                取消
+                            </button>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Advanced Section (Collapsed by default) -->
+                <section class="control-section advanced-section">
+                    <div class="section-header" id="advanced-toggle">
+                        <h3 class="section-title">Advanced</h3>
+                        <span class="material-icons expand-icon">expand_more</span>
+                    </div>
+                    <div class="advanced-content" id="advanced-content" style="display: none;">
+                        <!-- Map Style -->
+                        <div class="control-group">
+                            <label class="control-label" for="map-style-select">Map Style</label>
+                            <select id="map-style-select" class="select-input">
+                                <option value="light">Gray</option>
+                                <option value="satellite">Satellite</option>
+                                <option value="streets">Standard</option>
+                                <option value="dark">Dark</option>
+                            </select>
+                        </div>
+
+                        <!-- Labels Toggle -->
+                        <div class="control-group">
+                            <label class="control-label">
+                                <input type="checkbox" id="toggle-labels" checked>
+                                <span>Show Country/Place Names</span>
+                            </label>
+                            <small style="color: #999; font-size: 12px; display: block; margin-top: 4px;">
+                                Hide labels for cleaner infographics
+                            </small>
+                        </div>
+
+                        <!-- Boundary Mode -->
+                        <div class="control-group">
+                            <div class="control-label">Boundary Style</div>
+                            <div class="button-group">
+                                <button class="btn-toggle active" data-mode="fill">Fill</button>
+                                <button class="btn-toggle" data-mode="line">Line</button>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+            </div>
+        </aside>
+
+        <!-- Map Container -->
+        <main class="map-container">
+            <div id="map" class="map"></div>
+            
+            <!-- Click Instructions Overlay -->
+            <div class="click-instructions" id="click-instructions">
+                <span class="material-icons">touch_app</span>
+                <p>Click on map to select areas</p>
+            </div>
+
+            <!-- Color Picker Popup (appears on click) -->
+            <div class="color-picker-popup" id="color-picker-popup" style="display: none;">
+                <div class="popup-content">
+                    <p class="popup-label">Select color for:</p>
+                    <p class="popup-area-name" id="popup-area-name"></p>
+                    <div class="popup-color-presets">
+                        <button class="color-preset" data-color="#6CA7A1" style="background: #6CA7A1;" title="Tropical Teal"></button>
+                        <button class="color-preset" data-color="#496F96" style="background: #496F96;" title="Rich Cerulean"></button>
+                        <button class="color-preset" data-color="#E05C5A" style="background: #E05C5A;" title="Lobster Pink"></button>
+                        <button class="color-preset" data-color="#EDBD76" style="background: #EDBD76;" title="Sunlit Clay"></button>
+                        <button class="color-preset" data-color="#E8DFCF" style="background: #E8DFCF;" title="Bone"></button>
+                        <button class="color-preset" data-color="#B5CBCD" style="background: #B5CBCD;" title="Ash Grey"></button>
+                    </div>
+                    <div style="margin-top: 12px;">
+                        <input type="color" id="popup-color-picker" value="#6CA7A1" class="color-input" style="width: 60px; height: 40px;">
+                        <input type="text" id="popup-color-hex-input" value="#6CA7A1" class="color-hex-input" placeholder="#6CA7A1" maxlength="7" style="margin-left: 8px; flex: 1;">
+                    </div>
+                    <div class="popup-actions">
+                        <button class="btn-primary" id="apply-color-btn">Apply</button>
+                        <button class="btn-secondary" id="cancel-color-btn">Cancel</button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Marker Icon Picker Popup (appears when clicking marker) -->
+            <div class="marker-icon-picker-popup" id="marker-icon-picker-popup" style="display: none;">
+                <div class="popup-content">
+                    <p class="popup-label">Change marker color and shape</p>
+                    <div style="margin-bottom: 12px;">
+                        <div style="font-size: 12px; color: #757575; margin-bottom: 8px;">Color:</div>
+                        <div class="marker-icon-selector-popup" id="marker-edit-color-selector">
+                            <!-- Colors will be populated by JavaScript -->
+                        </div>
+                    </div>
+                    <div>
+                        <div style="font-size: 12px; color: #757575; margin-bottom: 8px;">Shape:</div>
+                        <div class="marker-icon-selector-popup" id="marker-edit-shape-selector">
+                            <!-- Shapes will be populated by JavaScript -->
+                        </div>
+                    </div>
+                    <div class="popup-actions">
+                        <button class="btn-secondary" id="close-marker-picker-btn">Close</button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Marker Color Picker on Add Popup (appears before creating new marker) -->
+            <div class="marker-color-picker-on-add-popup" id="marker-color-picker-on-add-popup" style="display: none;">
+                <div class="popup-content">
+                    <p class="popup-label">Choose marker color and shape</p>
+                    <p class="popup-area-name" id="marker-add-popup-location" style="font-size: 12px; color: #757575; margin: 4px 0 12px 0;"></p>
+                    <div style="margin-bottom: 12px;">
+                        <div style="font-size: 12px; color: #757575; margin-bottom: 8px;">Color:</div>
+                        <div class="marker-icon-selector-popup" id="marker-color-selector-on-add">
+                            <!-- Colors will be populated by JavaScript -->
+                        </div>
+                    </div>
+                    <div>
+                        <div style="font-size: 12px; color: #757575; margin-bottom: 8px;">Shape:</div>
+                        <div class="marker-icon-selector-popup" id="marker-shape-selector-on-add">
+                            <!-- Shapes will be populated by JavaScript -->
+                        </div>
+                    </div>
+                    <div class="popup-actions">
+                        <button class="btn-primary" id="confirm-add-marker-btn">Add Marker</button>
+                        <button class="btn-secondary" id="use-default-color-btn">Use Default</button>
+                        <button class="btn-secondary" id="cancel-add-marker-btn">Cancel</button>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loading-overlay" style="display: none;">
+        <div class="loading-spinner"></div>
+        <p>Loading boundaries...</p>
+    </div>
+
+    <!-- Toast Notifications -->
+    <div class="toast-container" id="toast-container"></div>
+
+    <!-- Export Settings Dialog -->
+    <div class="export-dialog-overlay" id="export-dialog-overlay" style="display: none;">
+        <div class="export-dialog">
+            <div class="export-dialog-header">
+                <h2>
+                    <span class="material-icons">print</span>
+                    Export Map Settings
+                </h2>
+                <button class="icon-btn close-btn" id="export-dialog-close" title="Close">
+                    <span class="material-icons">close</span>
+                </button>
+            </div>
+            
+            <div class="export-dialog-content">
+                <!-- Paper Size -->
+                <div class="export-option-group">
+                    <label class="export-label">Paper Size</label>
+                    <select id="export-paper-size" class="export-select">
+                        <option value="custom">Custom (Current View)</option>
+                        <option value="a4">A4 (210 × 297 mm)</option>
+                        <option value="a3">A3 (297 × 420 mm)</option>
+                        <option value="a2">A2 (420 × 594 mm)</option>
+                        <option value="letter">Letter (8.5" × 11")</option>
+                        <option value="legal">Legal (8.5" × 14")</option>
+                        <option value="tabloid">Tabloid (11" × 17")</option>
+                    </select>
+                </div>
+                
+                <!-- Orientation -->
+                <div class="export-option-group">
+                    <label class="export-label">Orientation</label>
+                    <div class="export-radio-group">
+                        <label class="export-radio">
+                            <input type="radio" name="export-orientation" value="portrait" checked>
+                            <span class="material-icons">crop_portrait</span>
+                            Portrait
+                        </label>
+                        <label class="export-radio">
+                            <input type="radio" name="export-orientation" value="landscape">
+                            <span class="material-icons">crop_landscape</span>
+                            Landscape
+                        </label>
+                    </div>
+                </div>
+                
+                <!-- Resolution / DPI -->
+                <div class="export-option-group">
+                    <label class="export-label">Resolution (DPI)</label>
+                    <select id="export-dpi" class="export-select">
+                        <option value="72">72 DPI (Screen / Web)</option>
+                        <option value="150">150 DPI (Draft Print)</option>
+                        <option value="300" selected>300 DPI (High Quality Print)</option>
+                        <option value="600">600 DPI (Professional Print)</option>
+                    </select>
+                    <p class="export-hint">Higher DPI = Better quality but larger file size</p>
+                </div>
+                
+                <!-- Format -->
+                <div class="export-option-group">
+                    <label class="export-label">Format</label>
+                    <div class="export-radio-group">
+                        <label class="export-radio">
+                            <input type="radio" name="export-format" value="png" checked>
+                            <span>PNG</span>
+                        </label>
+                        <label class="export-radio">
+                            <input type="radio" name="export-format" value="jpeg">
+                            <span>JPEG</span>
+                        </label>
+                    </div>
+                </div>
+                
+                <!-- Quality (for JPEG) -->
+                <div class="export-option-group" id="export-quality-group" style="display: none;">
+                    <label class="export-label">JPEG Quality</label>
+                    <input type="range" id="export-quality" min="50" max="100" value="90" class="export-range">
+                    <span id="export-quality-value">90%</span>
+                </div>
+                
+                <!-- Dimensions Preview -->
+                <div class="export-option-group">
+                    <label class="export-label">Output Dimensions</label>
+                    <div class="export-dimensions">
+                        <span id="export-dimensions-preview">Calculating...</span>
+                    </div>
+                </div>
+                
+                <!-- Export Preview -->
+                <div class="export-option-group">
+                    <label class="export-label">Preview</label>
+                    <div class="export-preview-container">
+                        <div id="export-preview" class="export-preview">
+                            <div class="export-preview-loading">Generating preview...</div>
+                        </div>
+                        <p class="export-hint">Preview is scaled down for display. Actual export will be at selected resolution.</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="export-dialog-actions">
+                <button class="btn-secondary" id="export-dialog-cancel">Cancel</button>
+                <button class="btn-primary" id="export-dialog-export">
+                    <span class="material-icons">download</span>
+                    Export Map
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Configuration -->
+    <script src="config.js"></script>
+    
+    <!-- Optimization Utilities (load before main app) -->
+    <script src="js/utils/debug.js"></script>
+    <script src="js/utils/cache.js"></script>
+    <script src="js/utils/debounce.js"></script>
+    
+    <!-- Country Codes -->
+    <script src="js/utils/country-codes.js"></script>
+    
+    <!-- Apple-Style Marker Icons -->
+    <script src="js/utils/marker-icons-apple.js"></script>
+    
+    <!-- AI Assistant utilities -->
+    <script src="js/utils/ai-helpers.js"></script>
+    <script src="js/utils/location-resolver.js"></script>
+    <!-- Gemini Service Cache (load before gemini-service.js) -->
+    <script src="js/services/gemini-service-cache.js"></script>
+    <script src="js/services/gemini-service.js?v=8"></script>
+    
+    <!-- Country-specific Data Loader (for state/city boundaries - smaller files) -->
+    <script src="js/app-country-loader.js"></script>
+    
+    <!-- GADM Data Loader (fallback for global administrative boundaries) -->
+    <script src="js/app-gadm.js"></script>
+    
+    <!-- Enhanced Application -->
+    <script src="js/app-enhanced.js"></script>
+    
+    <!-- AI Assistant integration -->
+    <script src="js/features/ai-assistant.js"></script>
+    
+    <!-- Agent-Ready Map Tool -->
+    <script src="js/data/specs/schema.js"></script>
+    <!-- Agent Architecture -->
+    <script src="js/data/gazetteer/synonyms.js"></script>
+    <script src="js/utils/gadm-validator.js"></script>
+    <script src="js/agent/validation-agent.js"></script>
+    <script src="js/agent/map-reference-retrieval-agent.js"></script>
+    <script src="js/agent/geo-extractor-agent.js"></script>
+    <script src="js/agent/geo-resolver-agent.js"></script>
+    <script src="js/agent/map-spec-generator.js"></script>
+    <script src="js/agent/map-agent-orchestrator.js"></script>
+    <script src="js/agent/map-spec-renderer.js"></script>
+    <script src="js/utils/agent-adapter.js"></script>
+    <script src="js/utils/country-adjacency.js"></script> <!-- Country adjacency for color assignment -->
+    <script src="js/agent/agent-integration-example.js"></script>
+    
+    <!-- Unified Interface -->
+    <script src="js/ui/unified-interface.js"></script>
+    
+    <!-- Image Overlay Feature -->
+    <script src="js/features/image-overlay.js"></script>
+</body>
+</html>
+

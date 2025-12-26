@@ -1,0 +1,2 @@
+# This directory contains large GADM tile files (.mbtiles)
+# These files are too large for Git and should be downloaded separately

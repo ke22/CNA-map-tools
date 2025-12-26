@@ -1,0 +1,57 @@
+╔══════════════════════════════════════════════════════════════╗
+║          REVISED PLAN & MANUAL TASKS - QUICK REFERENCE       ║
+╚══════════════════════════════════════════════════════════════╝
+
+📋 WHAT YOU NEED TO DO:
+
+1. ✅ Mapbox Token - ALREADY DONE!
+   └─ Token is in config.js (verified)
+
+2. ⬜ Download Taiwan Boundary Data (~30 minutes)
+   └─ Website: https://gadm.org/download_country.html
+   └─ Download: Level 1 (states) + Level 2 (counties)
+   └─ Save to: data/boundaries/gadm_states/TWN_level1.geojson
+              data/boundaries/gadm_counties/TWN_level2.geojson
+
+3. ✅ Ready to Start
+   └─ Say "ready" when Taiwan data is downloaded
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📚 DOCUMENTATION FILES:
+
+QUICK START:
+  → START_HERE.md (begin here!)
+  → YOUR_ACTION_ITEMS.md (quick checklist)
+  → MANUAL_TASKS_CHECKLIST.md (copy/paste checklist)
+
+DETAILED GUIDES:
+  → REVISED_PLAN.md (complete revised plan)
+  → MANUAL_TASKS_GUIDE.md (step-by-step instructions)
+
+TECHNICAL:
+  → TECHNICAL_REVIEW.md (detailed review)
+  → REVIEW_SUMMARY.md (quick review summary)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+⚡ KEY CHANGES IN REVISED PLAN:
+
+✅ River Layer → Extract from map style (not custom source)
+✅ State/County Boundaries → Use GADM GeoJSON (you download)
+✅ Performance → Data-driven styling (single layer, fast)
+✅ Click Detection → 5px tolerance buffer
+✅ Timeline → 15-20 days (more realistic)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🎯 NEXT STEPS:
+
+1. Read START_HERE.md for overview
+2. Follow MANUAL_TASKS_GUIDE.md to download data
+3. Check YOUR_ACTION_ITEMS.md for quick reference
+4. Say "ready" when done!
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✅ Status: All technical issues fixed, revised plan ready!

@@ -1,0 +1,45 @@
+# Mapbox Access Token
+config.js
+
+# But keep a template
+!config.example.js
+
+# Dependencies
+node_modules/
+package-lock.json
+yarn.lock
+
+# Build outputs
+dist/
+build/
+*.map
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment variables
+.env
+.env.local
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
+
+# GeoJSON data (if too large)
+# Uncomment if boundary files are too large for git
+# data/boundaries/*.geojson

@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>地圖下載小工具｜ⒸMapbox&OpenStreetMap</title>
+    <meta charset='utf-8' />
+    <meta name='viewport' content='width=device-width, initial-scale=1' />
+    <script src='https://api.mapbox.com/mapbox-gl-js/v3.2.0/mapbox-gl.js'></script>
+    <link href='https://api.mapbox.com/mapbox-gl-js/v3.2.0/mapbox-gl.css' rel='stylesheet' />
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@700&display=swap" rel="stylesheet">
+    <style>
+        body {
+        margin: 10px;
+        padding: 10px;
+    }
+
+    a {
+    color:#004e98;
+    }  
+
+
+    .country-select {
+        margin-bottom: 10px;
+        margin: 0 10px 0 0;
+
+    }
+
+    .color-select {
+        margin-bottom: 10px;
+
+
+    }
+
+    .button {
+      position: relative;
+      top: 0px;
+      left: 0px;
+      margin: 10px 0 10px 0;
+      padding: 10px 10px ;
+      background-color: #555555;
+      border: none;
+      border-radius: 10px;
+      color: #ffffff;
+      font-size: 16px;
+      font-family:'Noto Sans TC', sans-serif;
+      cursor: pointer;
+    }
+
+     #map {
+        width: 1600px;
+        height: 1600px;
+    }
+
+    </style>
+</head>
+
+<body>
+    <div style="margin:0px 0 5px 0">
+        <sapn style="font-size:30px;font-weight:black;font-family:'Noto Sans TC', sans-serif;">地圖下載小工具 <span style="font-size:20px;color:gray;">省州界版（適合美國中國等） v20240607</sapn>
+    </div>
+    <div style="font-family:'Noto Sans TC', sans-serif;">
+        <a href="maptool1.html">國界版</a>｜<a href="maptool2.html">省州界版</a>｜<a href="maptool3.html">縣市界版</a>｜<a href="maptool4.html">小地圖用</a>
+    </div>
+    <div style="margin:10px 0 10px 0">
+        輸入座標後按enter或點擊文字框外：<input type="text" id="coordinates" placeholder="格式為「緯度,經度」小數點，可在Google Maps上按右鍵選第一個" style="width:450px" />
+    </div>
+    <div style="margin:0px 0 0px 0">國家領土色塊➤
+        <input list="contries" id='country-select' class='country-select'>
+        <datalist id='contries'>
+            <option value='AFG'>阿富汗 Afghanistan</option>
+            <option value='ALA'>亞蘭群島 Aland Islands</option>
+            <option value='ALB'>阿爾巴尼亞 Albania</option>
+            <option value='DZA'>阿爾及利亞 Algeria</option>
+            <option value='ASM'>薩摩亞 American Samoa</option>
+            <option value='AND'>安道爾 Andorra</option>
+            <option value='AGO'>安哥拉 Angola</option>
+            <option value='AIA'>安吉拉 Anguilla</option>
+            <option value='ATA'>南極洲 Antarctica</option>
+            <option value='ATG'>安地卡及巴布達 Antigua and Barbuda</option>
+            <option value='ARG'>阿根廷 Argentina</option>
+            <option value='ARM'>亞美尼亞 Armenia</option>
+            <option value='ABW'>阿魯巴 Aruba</option>
+            <option value='AUS'>澳洲 Australia</option>
+            <option value='AUT'>奧地利 Austria</option>
+            <option value='AZE'>亞塞拜然 Azerbaijan</option>
+            <option value='BHS'>巴哈馬 Bahamas</option>
+            <option value='BHR'>巴林 Bahrain</option>
+            <option value='BGD'>孟加拉 Bangladesh</option>
+            <option value='BRB'>巴貝多 Barbados</option>
+            <option value='BLR'>白俄羅斯 Belarus</option>
+            <option value='BEL'>比利時 Belgium</option>
+            <option value='BLZ'>貝里斯 Belize</option>
+            <option value='BEN'>貝南 Benin</option>
+            <option value='BMU'>百慕達 Bermuda</option>
+            <option value='BTN'>不丹 Bhutan</option>
+            <option value='BOL'>玻利維亞 Bolivia</option>
+            <option value='BES'>波奈、聖佑達修斯與沙巴 Bonaire, Sint Eustatius and Saba</option>
+            <option value='BIH'>波士尼亞與赫塞哥維納 Bosnia and Herzegovina</option>
+            <option value='BWA'>波札那 Botswana</option>
+            <option value='BVT'>布威島 Bouvet Island</option>
+            <option value='BRA'>巴西 Brazil</option>
+            <option value='IOT'>英屬印度洋領地 British Indian Ocean Territory</option>
+            <option value='BRN'>汶萊 Brunei Darussalam</option>
+            <option value='BGR'>保加利亞 Bulgaria</option>
+            <option value='BFA'>布吉納法索 Burkina Faso</option>
+            <option value='BDI'>蒲隆地 Burundi</option>
+            <option value='CPV'>維德角 Cabo Verde</option>
+            <option value='KHM'>柬埔寨 Cambodia</option>
+            <option value='CMR'>喀麥隆 Cameroon</option>
+            <option value='CAN'>加拿大 Canada</option>
+            <option value='CYM'>開曼群島 Cayman Islands</option>
+            <option value='CAF'>中非 Central African Republic</option>
+            <option value='TCD'>查德 Chad</option>
+            <option value='CHL'>智利 Chile</option>
+            <option value='CHN'>中國 China</option>
+            <option value='CXR'>聖誕島 Christmas Island</option>
+            <option value='CCK'>科克斯（基靈）群島 Cocos (Keeling) Islands</option>
+            <option value='COL'>哥倫比亞 Colombia</option>
+            <option value='COM'>葛摩 Comoros</option>
+            <option value='COG'>剛果共和國 Congo</option>
+            <option value='COD'>剛果民主共和國 Congo (Democratic Republic of the)</option>
+            <option value='COK'>庫克群島 Cook Islands</option>
+            <option value='CRI'>哥斯大黎加 Costa Rica</option>
+            <option value='CIV'>象牙海岸 Côte d'Ivoire</option>
+            <option value='HRV'>克羅埃西亞 Croatia</option>
+            <option value='CUB'>古巴 Cuba</option>
+            <option value='CUW'>古拉索 Curaçao</option>
+            <option value='CYP'>賽普勒斯 Cyprus</option>
+            <option value='CZE'>捷克 Czechia</option>
+            <option value='DNK'>丹麥 Denmark</option>
+            <option value='DJI'>吉布地 Djibouti</option>
+            <option value='DMA'>多米尼克 Dominica</option>
+            <option value='DOM'>多明尼加 Dominican Republic</option>
+            <option value='ECU'>厄瓜多 Ecuador</option>
+            <option value='EGY'>埃及 Egypt</option>
+            <option value='SLV'>薩爾瓦多 El Salvador</option>
+            <option value='GNQ'>赤道幾內亞 Equatorial Guinea</option>
+            <option value='ERI'>厄利垂亞 Eritrea</option>
+            <option value='EST'>愛沙尼亞 Estonia</option>
+            <option value='SWZ'>史瓦帝尼 Eswatini</option>
+            <option value='ETH'>衣索比亞 Ethiopia</option>
+            <option value='FLK'>福克蘭群島 Falkland Islands</option>
+            <option value='FRO'>法羅群島 Faroe Islands</option>
+            <option value='FJI'>斐濟 Fiji</option>
+            <option value='FIN'>芬蘭 Finland</option>
+            <option value='FRA'>法國 France</option>
+            <option value='GUF'>法屬圭亞那 French Guiana</option>
+            <option value='PYF'>法屬玻里尼西亞 French Polynesia</option>
+            <option value='ATF'>法屬南部和南極領地 French Southern Territories</option>
+            <option value='GAB'>加彭 Gabon</option>
+            <option value='GMB'>甘比亞 Gambia</option>
+            <option value='GEO'>喬治亞 Georgia</option>
+            <option value='DEU'>德國 Germany</option>
+            <option value='GHA'>迦納 Ghana</option>
+            <option value='GIB'>直布羅陀 Gibraltar</option>
+            <option value='GRC'>希臘 Greece</option>
+            <option value='GRL'>格陵蘭 Greenland</option>
+            <option value='GRD'>格瑞那達 Grenada</option>
+            <option value='GLP'>瓜德羅普 Guadeloupe</option>
+            <option value='GUM'>關島 Guam</option>
+            <option value='GTM'>瓜地馬拉 Guatemala</option>
+            <option value='GGY'>根西 Guernsey</option>
+            <option value='GIN'>幾內亞 Guinea</option>
+            <option value='GNB'>幾內亞比索 Guinea-Bissau</option>
+            <option value='GUY'>蓋亞那 Guyana</option>
+            <option value='HTI'>海地 Haiti</option>
+            <option value='HMD'>赫德島和麥克唐納群島 Heard Island and McDonald Islands</option>
+            <option value='VAT'>梵蒂岡 Holy See</option>
+            <option value='HND'>宏都拉斯 Honduras</option>
+            <option value='HKG'>香港 Hong Kong</option>
+            <option value='HUN'>匈牙利 Hungary</option>
+            <option value='ISL'>冰島 Iceland</option>
+            <option value='IND'>印度 India</option>
+            <option value='IDN'>印尼 Indonesia</option>
+            <option value='IRN'>伊朗 Iran</option>
+            <option value='IRQ'>伊拉克 Iraq</option>
+            <option value='IRL'>愛爾蘭 Ireland</option>
+            <option value='IMN'>曼島 Isle of Man</option>
+            <option value='ISR'>以色列 Israel</option>
+            <option value='ITA'>義大利 Italy</option>
+            <option value='JAM'>牙買加 Jamaica</option>
+            <option value='JPN'>日本 Japan</option>
+            <option value='JEY'>澤西 Jersey</option>
+            <option value='JOR'>約旦 Jordan</option>
+            <option value='KAZ'>哈薩克 Kazakhstan</option>
+            <option value='KEN'>肯亞 Kenya</option>
+            <option value='KIR'>吉里巴斯 Kiribati</option>
+            <option value='PRK'>北韓 Korea (Democratic People's Republic of)</option>
+            <option value='KOR'>南韓 Korea (Republic of)</option>
+            <option value='KWT'>科威特 Kuwait</option>
+            <option value='KGZ'>吉爾吉斯 Kyrgyzstan</option>
+            <option value='LAO'>寮國 Lao People's Democratic Republic</option>
+            <option value='LVA'>拉脫維亞 Latvia</option>
+            <option value='LBN'>黎巴嫩 Lebanon</option>
+            <option value='LSO'>賴索托 Lesotho</option>
+            <option value='LBR'>賴比瑞亞 Liberia</option>
+            <option value='LBY'>利比亞 Libya</option>
+            <option value='LIE'>列支敦斯登 Liechtenstein</option>
+            <option value='LTU'>立陶宛 Lithuania</option>
+            <option value='LUX'>盧森堡 Luxembourg</option>
+            <option value='MAC'>澳門 Macao</option>
+            <option value='MDG'>馬達加斯加 Madagascar</option>
+            <option value='MWI'>馬拉威 Malawi</option>
+            <option value='MYS'>馬來西亞 Malaysia</option>
+            <option value='MDV'>馬爾地夫 Maldives</option>
+            <option value='MLI'>馬利 Mali</option>
+            <option value='MLT'>馬爾他 Malta</option>
+            <option value='MHL'>馬紹爾群島 Marshall Islands</option>
+            <option value='MTQ'>馬丁尼閣 Martinique</option>
+            <option value='MRT'>茅利塔尼亞 Mauritania</option>
+            <option value='MUS'>模里西斯 Mauritius</option>
+            <option value='MYT'>馬約特 Mayotte</option>
+            <option value='MEX'>墨西哥 Mexico</option>
+            <option value='FSM'>密克羅尼西亞聯邦 Micronesia (Federated States of)</option>
+            <option value='MDA'>摩爾多瓦 Moldova</option>
+            <option value='MCO'>摩納哥 Monaco</option>
+            <option value='MNG'>蒙古 Mongolia</option>
+            <option value='MNE'>蒙特內哥羅 Montenegro</option>
+            <option value='MSR'>蒙哲臘 Montserrat</option>
+            <option value='MAR'>摩洛哥 Morocco</option>
+            <option value='MOZ'>莫三比克 Mozambique</option>
+            <option value='MMR'>緬甸 Myanmar</option>
+            <option value='NAM'>納米比亞 Namibia</option>
+            <option value='NRU'>諾魯 Nauru</option>
+            <option value='NPL'>尼泊爾 Nepal</option>
+            <option value='NLD'>荷蘭 Netherlands</option>
+            <option value='NCL'>新喀里多尼亞島 New Caledonia</option>
+            <option value='NZL'>紐西蘭 New Zealand</option>
+            <option value='NIC'>尼加拉瓜 Nicaragua</option>
+            <option value='NER'>尼日 Niger</option>
+            <option value='NGA'>奈及利亞 Nigeria</option>
+            <option value='NIU'>紐埃 Niue</option>
+            <option value='NFK'>諾福克群島 Norfolk Island</option>
+            <option value='MKD'>北馬其頓 North Macedonia</option>
+            <option value='MNP'>北馬里亞納群島 Northern Mariana Islands</option>
+            <option value='NOR'>挪威 Norway</option>
+            <option value='OMN'>阿曼 Oman</option>
+            <option value='PAK'>巴基斯坦 Pakistan</option>
+            <option value='PLW'>帛琉 Palau</option>
+            <option value='PSE'>巴勒斯坦 Palestine, State of</option>
+            <option value='PAN'>巴拿馬 Panama</option>
+            <option value='PNG'>巴布亞紐幾內亞 Papua New Guinea</option>
+            <option value='PRY'>巴拉圭 Paraguay</option>
+            <option value='PER'>秘魯 Peru</option>
+            <option value='PHL'>菲律賓 Philippines</option>
+            <option value='PCN'>比特開恩群島 Pitcairn</option>
+            <option value='POL'>波蘭 Poland</option>
+            <option value='PRT'>葡萄牙 Portugal</option>
+            <option value='PRI'>波多黎各 Puerto Rico</option>
+            <option value='QAT'>卡達 Qatar</option>
+            <option value='REU'>留尼旺島 Réunion</option>
+            <option value='ROU'>羅馬尼亞 Romania</option>
+            <option value='RUS'>俄羅斯 Russian Federation</option>
+            <option value='RWA'>盧安達 Rwanda</option>
+            <option value='BLM'>聖巴特密島 Saint Barthélemy</option>
+            <option value='SHN'>聖赫勒拿、阿森松和特里斯坦-達庫尼亞 Saint Helena, Ascension and Tristan da Cunha</option>
+            <option value='KNA'>聖克里斯多福及尼維斯 Saint Kitts and Nevis</option>
+            <option value='LCA'>聖露西亞 Saint Lucia</option>
+            <option value='MAF'>法屬聖馬丁 Saint Martin (French part)</option>
+            <option value='SPM'>聖比爾與密克隆群島 Saint Pierre and Miquelon</option>
+            <option value='VCT'>聖文森及格瑞那丁 Saint Vincent and the Grenadines</option>
+            <option value='WSM'>薩摩亞 Samoa</option>
+            <option value='SMR'>聖馬利諾 San Marino</option>
+            <option value='STP'>聖多美普林西比 Sao Tome and Principe</option>
+            <option value='SAU'>沙烏地阿拉伯 Saudi Arabia</option>
+            <option value='SEN'>塞內加爾 Senegal</option>
+            <option value='SRB'>塞爾維亞 Serbia</option>
+            <option value='SYC'>塞席爾 Seychelles</option>
+            <option value='SLE'>獅子山 Sierra Leone</option>
+            <option value='SGP'>新加坡 Singapore</option>
+            <option value='SXM'>荷屬聖馬丁 Sint Maarten (Dutch part)</option>
+            <option value='SVK'>斯洛伐克 Slovakia</option>
+            <option value='SVN'>斯洛維尼亞 Slovenia</option>
+            <option value='SLB'>索羅門群島 Solomon Islands</option>
+            <option value='SOM'>索馬利亞 Somalia</option>
+            <option value='ZAF'>南非 South Africa</option>
+            <option value='SGS'>南喬治亞島和南桑威奇群島 South Georgia and the South Sandwich Islands</option>
+            <option value='SSD'>南蘇丹 South Sudan</option>
+            <option value='ESP'>西班牙 Spain</option>
+            <option value='LKA'>斯里蘭卡 Sri Lanka</option>
+            <option value='SDN'>蘇丹 Sudan</option>
+            <option value='SUR'>蘇利南 Suriname</option>
+            <option value='SJM'>斯瓦巴和楊邁恩 Svalbard and Jan Mayen</option>
+            <option value='SWE'>瑞典 Sweden</option>
+            <option value='CHE'>瑞士 Switzerland</option>
+            <option value='SYR'>敘利亞 Syrian Arab Republic</option>
+            <option value='TWN'>台灣 Taiwan</option>
+            <option value='TJK'>塔吉克 Tajikistan</option>
+            <option value='TZA'>坦尚尼亞 Tanzania</option>
+            <option value='THA'>泰國 Thailand</option>
+            <option value='TLS'>東帝汶 Timor-Leste</option>
+            <option value='TGO'>多哥 Togo</option>
+            <option value='TKL'>托克勞群島 Tokelau</option>
+            <option value='TON'>東加 Tonga</option>
+            <option value='TTO'>千里達及托巴哥 Trinidad and Tobago</option>
+            <option value='TUN'>突尼西亞 Tunisia</option>
+            <option value='TUR'>土耳其 Turkiye</option>
+            <option value='TKM'>土庫曼 Turkmenistan</option>
+            <option value='TCA'>土克凱可群島 Turks and Caicos Islands</option>
+            <option value='TUV'>吐瓦魯 Tuvalu</option>
+            <option value='UGA'>烏干達 Uganda</option>
+            <option value='UKR'>烏克蘭 Ukraine</option>
+            <option value='ARE'>阿聯 United Arab Emirates</option>
+            <option value='GBR'>英國 United Kingdom of Great Britain and Northern Ireland</option>
+            <option value='UMI'>美國本土外小島嶼 United States Minor Outlying Islands</option>
+            <option value='USA'>美國 United States of America</option>
+            <option value='URY'>烏拉圭 Uruguay</option>
+            <option value='UZB'>烏茲別克 Uzbekistan</option>
+            <option value='VUT'>萬那杜 Vanuatu</option>
+            <option value='VEN'>委內瑞拉 Venezuela</option>
+            <option value='VNM'>越南 Viet Nam</option>
+            <option value='VGB'>英屬維京群島 Virgin Islands (British)</option>
+            <option value='VIR'>美屬維京群島 Virgin Islands (U.S.)</option>
+            <option value='WLF'>瓦利斯群島和富圖那群島 Wallis and Futuna</option>
+            <option value='ESH'>西撒哈拉 Western Sahara</option>
+            <option value='YEM'>葉門 Yemen</option>
+            <option value='ZMB'>尚比亞 Zambia</option>
+            <option value='ZWE'>辛巴威 Zimbabwe</option>
+        </datalist>
+        <button type="button" id="inputclear" onclick="clearinput()" style="margin:0 5px 0 0">清空國家重選</button>
+        色塊顏色➤
+        <input type="radio" id="color1" name="colorselect" value="#004e98" checked />
+        <label for="color1">藍</label>
+        <input type="radio" id="color2" name="colorselect" value="#980000" />
+        <label for="color2">紅</label>
+        <input type="radio" id="color3" name="colorselect" value="#FF6B00" />
+        <label for="color2">橙</label>
+        <input type="radio" id="color4" name="colorselect" value="#000000" />
+        <label for="color3">深灰</label>
+        <input type="radio" id="color5" name="colorselect" value="#777777" />
+        <label for="color3">淺灰</label>
+    </div>
+    <div style="margin:0px 0 10px 0">
+        <button class="button" id='clear-button'>清除地圖色塊</button>
+        <button class="button" id='clear-marker' onclick="clearmarker()">清除地圖座標點</button>
+        <button class="button" onclick="captureMap()">下載圖檔<span class="material-icons" style="font-size:10pt;">download</span></button>
+        <button class="button" onclick="window.open('https://www.google.com.tw/maps?hl=zh-TW&tab=wl','_blank')">Google Maps<span class="material-icons" style="font-size:10pt;">open_in_new</span></button>
+        <button class="button" onclick="window.open('https://drive.google.com/drive/folders/1oOm0NlYMC-OqlbwNhzf4h0jtTu5GrAGt','_blank')">Google雲端硬碟圖表區<span class="material-icons" style="font-size:10pt;">open_in_new</span></button></div>
+    <div id='map'></div>
+    <script>
+    mapboxgl.accessToken = 'pk.eyJ1IjoiY25hZ3JhcGhpY2Rlc2lnbiIsImEiOiJjbHRxbXlnc28wODF6Mmltb2Rjb3g5a25kIn0.x73wo3gKurL6CivFUOjVeg';
+
+    const map = new mapboxgl.Map({
+        container: 'map',
+        style: 'mapbox://styles/cnagraphicdesign/cltqna92j01ig01pt1kvfexby',
+        center: [-98.69410115661519, 39.697173952309306],
+        zoom: 4,
+        localIdeographFontFamily: "'Noto Sans', 'Noto Sans CJK TC', sans-serif"
+    });
+
+    const countrySelects = document.getElementsByClassName('country-select');
+    const clearButton = document.getElementById('clear-button');
+
+
+    const countryLayers = []; // 存放已添加的國家圖層
+
+    function clearinput() {
+        document.getElementById('country-select').value = '';
+    }
+
+    function addCountryLayer(countryCode) {
+        map.addLayer({
+            id: countryCode,
+            type: 'fill',
+            antialias: 'false',
+            source: {
+                type: 'vector',
+                url: 'mapbox://mapbox.country-boundaries-v1'
+            },
+            'source-layer': 'country_boundaries',
+            filter: [
+                'all',
+                ['==', 'iso_3166_1_alpha_3', countryCode],
+                ['in', 'worldview', 'all', 'JP', 'AR,JP,MA,RU,TR,US', 'US', 'AR,IN,JP,MA,RU,TR,US', 'AR,CN,IN,JP,MA,TR,US', 'AR,CN,JP,MA,RU,TR,US', 'AR,CN,IN,JP,RU,TR,US', 'CN,JP', 'CN,IN,JP,MA,RU,TR,US', 'AR,IN,JP,MA,RS,RU,TR,US', 'IN'],
+                //2024.6.7發現mapbox有一些世界觀修正，台灣菲律賓等改為AR,IN,JP,MA,RS,RU,TR,US，中國改為IN by綱
+            ],
+            paint: {
+                'fill-color': document.querySelector('input[type=radio][name=colorselect]:checked').value,
+                'fill-opacity': 0.5
+            }
+        });
+
+        countryLayers.push(countryCode); // 將國家代碼加入已添加國家圖層列表
+    }
+
+    function removeCountryLayer(countryCode) {
+        map.removeLayer(countryCode);
+        map.removeSource(countryCode);
+        const index = countryLayers.indexOf(countryCode);
+        countryLayers.splice(index, 1); // 從已添加國家圖層列表中移除國家代碼
+    }
+
+    function clearCountryLayers() {
+        countryLayers.forEach(function(countryCode) {
+            removeCountryLayer(countryCode);
+        });
+
+        Array.from(countrySelects).forEach(function(countrySelect) {
+            countrySelect.value = '';
+            countrySelect.value = '';
+            countrySelect.value = '';
+        });
+    }
+
+    Array.from(countrySelects).forEach(function(countrySelect) {
+        countrySelect.addEventListener('change', function() {
+            const countryCode = this.value;
+
+            if (countryLayers.includes(countryCode)) {
+                removeCountryLayer(countryCode);
+            } else {
+                addCountryLayer(countryCode);
+            }
+        });
+    });
+
+    clearButton.addEventListener('click', function() {
+        clearCountryLayers();
+        clearCountryLayers();
+        clearCountryLayers();
+    });
+
+    var marker = new mapboxgl.Marker({
+        color: '#000000',
+        radius: 5,
+        element: createMarkerElement()
+    }).setLngLat([180, -90]).addTo(map);
+
+    function createMarkerElement() {
+        var el = document.createElement('div');
+        el.style.width = '5px';
+        el.style.height = '5px';
+        el.style.borderRadius = '50%';
+        el.style.backgroundColor = '#000000';
+        return el;
+    }
+
+    function updateMarker(coordinates) {
+        marker.setLngLat(coordinates);
+    }
+
+    document.getElementById('coordinates').addEventListener('change', function(e) {
+        var coordinates = e.target.value.split(',');
+        if (coordinates.length === 2) {
+            var lat = parseFloat(coordinates[0].trim());
+            var lng = parseFloat(coordinates[1].trim());
+            if (!isNaN(lat) && !isNaN(lng)) {
+                updateMarker([lng, lat]);
+                map.flyTo({
+                    center: [lng, lat],
+                    zoom: 4
+                });
+            } else {
+                document.getElementById('coordinates').value = '';
+            }
+        } else {
+            document.getElementById('coordinates').value = '';
+        }
+    });
+
+        function clearmarker() {
+        document.getElementById('coordinates').value = '';
+        marker.setLngLat([180, -90]);
+    }
+
+    function captureMap() {
+        var canvas = document.createElement('canvas');
+        var width = map.getCanvas().clientWidth;
+        var height = map.getCanvas().clientHeight;
+        canvas.width = width;
+        canvas.height = height;
+        var context = canvas.getContext('2d');
+
+        map.once('render', function() {
+            context.drawImage(map.getCanvas(), 0, 0, width, height);
+
+            var markerSize = 2;
+            var markerColor = '#000000';
+            var coordinates = marker.getLngLat();
+            var pixel = map.project(coordinates);
+            context.beginPath();
+            context.arc(pixel.x, pixel.y, markerSize, 0, 2 * Math.PI, false);
+            context.fillStyle = markerColor;
+            context.fill();
+
+            canvas.toBlob(function(blob) {
+                var link = document.createElement('a');
+                link.href = URL.createObjectURL(blob);
+                link.download = 'map_capture.png';
+                link.click();
+            });
+        });
+
+        map.triggerRepaint();
+    }
+    </script>
+</body>
+
+</html>

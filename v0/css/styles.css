@@ -1,0 +1,66 @@
+body {
+    margin: 10px;
+    padding: 10px;
+}
+
+a {
+    color: #004e98;
+    text-decoration: none;
+}
+
+a:hover {
+    text-decoration: underline;
+}
+
+.country-select {
+    margin-bottom: 10px;
+    margin: 0 10px 0 0;
+}
+
+.color-select {
+    margin-bottom: 10px;
+}
+
+.button {
+    position: relative;
+    top: 0px;
+    left: 0px;
+    margin: 10px 10px 10px 0;
+    padding: 10px 10px;
+    background-color: #555555;
+    border: none;
+    border-radius: 10px;
+    color: #ffffff;
+    font-size: 16px;
+    font-family: 'Noto Sans TC', sans-serif;
+    cursor: pointer;
+}
+
+.button:hover {
+    background-color: #666666;
+}
+
+#map {
+    width: 100%;
+    max-width: 1600px;
+    height: 800px;
+    border: 1px solid #ccc;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+    #map {
+        height: 600px;
+    }
+    
+    .button {
+        font-size: 14px;
+        padding: 8px;
+        margin: 5px 5px 5px 0;
+    }
+    
+    input#coordinates {
+        width: 100% !important;
+        max-width: 450px;
+    }
+}

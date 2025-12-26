@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Mapbox Boundary Sources</title>
+    <script src='https://api.mapbox.com/mapbox-gl-js/v3.0.1/mapbox-gl.js'></script>
+    <link href='https://api.mapbox.com/mapbox-gl-js/v3.0.1/mapbox-gl.css' rel='stylesheet' />
+    <style>
+        body { margin: 0; font-family: Arial, sans-serif; }
+        #map { width: 100%; height: 100vh; }
+        #info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: white;
+            padding: 15px;
+            border-radius: 5px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            z-index: 1000;
+            max-width: 400px;
+        }
+        .source-test {
+            margin: 10px 0;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+        }
+        .success { background-color: #d4edda; border-color: #c3e6cb; }
+        .error { background-color: #f8d7da; border-color: #f5c6cb; }
+        .testing { background-color: #fff3cd; border-color: #ffeaa7; }
+        button {
+            padding: 10px 15px;
+            margin: 5px;
+            cursor: pointer;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 3px;
+        }
+        button:hover { background: #0056b3; }
+    </style>
+</head>
+<body>
+    <div id="info">
+        <h3>Mapbox Boundary Sources Test</h3>
+        <p>Testing if you have access to Mapbox Boundaries tilesets...</p>
+        <div id="results"></div>
+        <button onclick="testAllSources()">Test All Sources</button>
+        <button onclick="clearResults()">Clear</button>
+    </div>
+    <div id="map"></div>
+
+    <script>
+        // Get your Mapbox token from config.js
+        // Replace with your actual token
+        const MAPBOX_TOKEN = 'pk.eyJ1IjoiY25hZ3JhcGhpY2Rlc2lnbiIsImEiOiJjbHRxbXlnc28wODF6Mmltb2Rjb3g5a25kIn0.x73wo3gKurL6CivFUOjVeg';
+        
+        mapboxgl.accessToken = MAPBOX_TOKEN;
+
+        const map = new mapboxgl.Map({
+            container: 'map',
+            style: 'mapbox://styles/mapbox/light-v11',
+            center: [121.533, 25.057],
+            zoom: 3
+        });
+
+        const sourcesToTest = [
+            {
+                id: 'boundaries-adm0',
+                url: 'mapbox://mapbox.country-boundaries-v1',
+                name: 'Country Boundaries (adm0)',
+                sourceLayer: 'country_boundaries',
+                expected: true // We know this works
+            },
+            {
+                id: 'boundaries-adm0-v3',
+                url: 'mapbox://mapbox.boundaries-adm0-v3',
+                name: 'Boundaries adm0-v3',
+                sourceLayer: 'boundaries_adm0',
+                expected: false // Unknown
+            },
+            {
+                id: 'boundaries-adm1-v3',
+                url: 'mapbox://mapbox.boundaries-adm1-v3',
+                name: 'State/Province Boundaries (adm1-v3)',
+                sourceLayer: 'boundaries_adm1',
+                expected: false // This is what we want!
+            },
+            {
+                id: 'boundaries-adm2-v3',
+                url: 'mapbox://mapbox.boundaries-adm2-v3',
+                name: 'County/City Boundaries (adm2-v3)',
+                sourceLayer: 'boundaries_adm2',
+                expected: false // This is what we want!
+            }
+        ];
+
+        function addResult(source, status, message) {
+            const resultsDiv = document.getElementById('results');
+            const div = document.createElement('div');
+            div.className = `source-test ${status}`;
+            div.innerHTML = `
+                <strong>${source.name}</strong><br>
+                <small>${source.url}</small><br>
+                <span>${message}</span>
+            `;
+            resultsDiv.appendChild(div);
+        }
+
+        function testSource(source) {
+            return new Promise((resolve) => {
+                addResult(source, 'testing', 'Testing...');
+                
+                try {
+                    map.addSource(source.id, {
+                        type: 'vector',
+                        url: source.url
+                    });
+
+                    // Try to add a layer to test if source works
+                    map.addLayer({
+                        id: source.id + '-layer',
+                        type: 'fill',
+                        source: source.id,
+                        'source-layer': source.sourceLayer,
+                        paint: {
+                            'fill-color': source.expected ? '#00ff00' : '#0066ff',
+                            'fill-opacity': 0.3
+                        }
+                    });
+
+                    // Check if source loaded successfully
+                    map.once('sourcedata', (e) => {
+                        if (e.sourceId === source.id && e.isSourceLoaded) {
+                            addResult(source, 'success', '✅ ACCESS GRANTED - This source works!');
+                            resolve({ success: true, source });
+                        }
+                    });
+
+                    map.once('error', (e) => {
+                        if (e.error && e.error.message) {
+                            const errorMsg = e.error.message;
+                            if (errorMsg.includes('401') || errorMsg.includes('403') || errorMsg.includes('Forbidden')) {
+                                addResult(source, 'error', '❌ NO ACCESS - Requires special permissions');
+                            } else if (errorMsg.includes('404') || errorMsg.includes('Not Found')) {
+                                addResult(source, 'error', '❌ NOT FOUND - This tileset does not exist');
+                            } else {
+                                addResult(source, 'error', `❌ ERROR - ${errorMsg}`);
+                            }
+                        }
+                        resolve({ success: false, source });
+                    });
+
+                    // Timeout after 5 seconds
+                    setTimeout(() => {
+                        resolve({ success: false, source, timeout: true });
+                    }, 5000);
+
+                } catch (error) {
+                    addResult(source, 'error', `❌ ERROR - ${error.message}`);
+                    resolve({ success: false, source });
+                }
+            });
+        }
+
+        async function testAllSources() {
+            document.getElementById('results').innerHTML = '';
+            
+            for (const source of sourcesToTest) {
+                await testSource(source);
+                await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 sec between tests
+            }
+
+            // Summary
+            const summaryDiv = document.createElement('div');
+            summaryDiv.className = 'source-test';
+            summaryDiv.style.marginTop = '20px';
+            summaryDiv.style.backgroundColor = '#e7f3ff';
+            summaryDiv.innerHTML = `
+                <strong>Summary:</strong><br>
+                Check the results above. If adm1 or adm2 sources work, you can use Mapbox directly!
+                Otherwise, continue with GADM data conversion plan.
+            `;
+            document.getElementById('results').appendChild(summaryDiv);
+        }
+
+        function clearResults() {
+            document.getElementById('results').innerHTML = '';
+        }
+
+        // Test on map load
+        map.on('load', () => {
+            addResult(
+                { name: 'Map Loaded', url: '' },
+                'success',
+                '✅ Map loaded successfully. Click "Test All Sources" to begin.'
+            );
+        });
+    </script>
+</body>
+</html>
+
+

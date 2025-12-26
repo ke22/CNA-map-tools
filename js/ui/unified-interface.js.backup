@@ -1,0 +1,203 @@
+// ... existing code ...
+
+/**
+ * Show area preview with color picker
+ * Creates a semi-transparent preview layer first, then shows color picker
+ */
+async function showAreaPreviewWithColorPicker(areaId, areaName, areaType, center) {
+    // Use default color with low opacity for preview
+    const previewColor = appState.currentColor || '#6CA7A1';
+    const previewLayerId = `preview-area-${areaType}-${areaId}`;
+    
+    // Check if preview layer already exists, remove it first
+    if (appState.map.getLayer(previewLayerId)) {
+        appState.map.removeLayer(previewLayerId);
+    }
+    if (appState.map.getSource(`preview-source-${previewLayerId}`)) {
+        appState.map.removeSource(`preview-source-${previewLayerId}`);
+    }
+    
+    // Create preview layer with low opacity (0.4 = 40% transparency)
+    try {
+        // First ensure the boundary source is loaded
+        let targetAreaType = areaType === 'country' ? 'country' : 'administration';
+        if (appState.currentAreaType !== targetAreaType) {
+            if (typeof switchAreaType === 'function') {
+                switchAreaType(targetAreaType);
+                await new Promise(resolve => setTimeout(resolve, 300));
+            }
+        }
+        
+        if (typeof loadBoundarySourceForType === 'function') {
+            await loadBoundarySourceForType(targetAreaType, false);
+            await new Promise(resolve => setTimeout(resolve, 500));
+        }
+        
+        // Create preview layer using createAreaLayer with low opacity
+        // We'll create a temporary layer with low opacity
+        const tempLayerId = previewLayerId;
+        
+        // Store original boundary mode
+        const originalBoundaryMode = appState.boundaryMode || 'fill';
+        
+        // Temporarily set boundary mode to fill for preview
+        appState.boundaryMode = 'fill';
+        
+        // Create preview layer with low opacity
+        await createPreviewAreaLayer(areaId, areaName, areaType, previewColor, tempLayerId, 0.4);
+        
+        console.log(`✅ [Unified] Preview layer created: ${tempLayerId}`);
+        
+        // Show color picker popup at center of map (or clicked point)
+        const mapCenter = appState.map.getCenter();
+        const point = center ? { lng: center[0], lat: center[1] } : { lng: mapCenter.lng, lat: mapCenter.lat };
+        
+        // Show color picker with callback to apply color
+        if (typeof showColorPickerPopupForArea === 'function') {
+            showColorPickerPopupForArea(point, areaId, areaName, areaType, previewColor, tempLayerId);
+        } else if (typeof showColorPickerPopup === 'function') {
+            // Fallback to existing color picker
+            showColorPickerPopup(point, areaId, areaName, areaType, previewColor);
+        }
+        
+    } catch (error) {
+        console.error(`❌ [Unified] Error creating preview layer:`, error);
+        // If preview fails, just show color picker directly
+        const mapCenter = appState.map.getCenter();
+        const point = center ? { lng: center[0], lat: center[1] } : { lng: mapCenter.lng, lat: mapCenter.lat };
+        
+        if (typeof showColorPickerPopup === 'function') {
+            showColorPickerPopup(point, areaId, areaName, areaType, appState.currentColor);
+        }
+    }
+}
+
+/**
+ * Create preview area layer with specified opacity
+ */
+async function createPreviewAreaLayer(areaId, areaName, areaType, color, layerId, opacity) {
+    // Reuse createAreaLayer but with custom opacity
+    // We'll call createAreaLayer and then adjust opacity
+    
+    // First create the layer normally
+    await createAreaLayer(areaId, areaName, areaType, color, layerId, appState.boundaryMode || 'fill');
+    
+    // Then adjust opacity to preview level
+    if (appState.map.getLayer(layerId)) {
+        const layer = appState.map.getLayer(layerId);
+        if (layer.type === 'fill') {
+            appState.map.setPaintProperty(layerId, 'fill-opacity', opacity);
+        } else if (layer.type === 'line') {
+            appState.map.setPaintProperty(layerId, 'line-opacity', opacity);
+        }
+    }
+}
+
+/**
+ * Show color picker popup for area with preview layer support
+ */
+function showColorPickerPopupForArea(point, areaId, areaName, areaType, currentColor, previewLayerId) {
+    const popup = document.getElementById('color-picker-popup');
+    if (!popup) {
+        console.error('❌ Color picker popup not found');
+        return;
+    }
+    
+    // Position popup
+    const popupElement = popup.querySelector('.color-picker-popup-content');
+    if (popupElement) {
+        // Position near the map center or clicked point
+        popupElement.style.position = 'fixed';
+        popupElement.style.top = '50%';
+        popupElement.style.left = '50%';
+        popupElement.style.transform = 'translate(-50%, -50%)';
+        popupElement.style.zIndex = '10000';
+    }
+    
+    popup.style.display = 'block';
+    
+    const colorPicker = document.getElementById('popup-color-picker');
+    const hexInput = document.getElementById('popup-color-hex-input');
+    const areaNameDisplay = popup.querySelector('.popup-area-name');
+    
+    if (colorPicker) colorPicker.value = currentColor;
+    if (hexInput) hexInput.value = currentColor;
+    if (areaNameDisplay) areaNameDisplay.textContent = areaName;
+    
+    // Remove old listeners
+    const applyBtn = document.getElementById('apply-color-btn');
+    const cancelBtn = document.getElementById('cancel-color-btn');
+    
+    // Update preview layer when color changes
+    const updatePreview = () => {
+        const selectedColor = colorPicker?.value || hexInput?.value || currentColor;
+        if (appState.map.getLayer(previewLayerId)) {
+            const layer = appState.map.getLayer(previewLayerId);
+            if (layer.type === 'fill') {
+                appState.map.setPaintProperty(previewLayerId, 'fill-color', selectedColor);
+            } else if (layer.type === 'line') {
+                appState.map.setPaintProperty(previewLayerId, 'line-color', selectedColor);
+            }
+        }
+    };
+    
+    if (colorPicker) {
+        colorPicker.addEventListener('input', updatePreview);
+    }
+    if (hexInput) {
+        hexInput.addEventListener('input', updatePreview);
+    }
+    
+    // Apply button handler
+    const applyHandler = async () => {
+        const selectedColor = colorPicker?.value || hexInput?.value || currentColor;
+        
+        // Remove preview layer
+        if (appState.map.getLayer(previewLayerId)) {
+            appState.map.removeLayer(previewLayerId);
+        }
+        const previewSourceId = `preview-source-${previewLayerId}`;
+        if (appState.map.getSource(previewSourceId)) {
+            appState.map.removeSource(previewSourceId);
+        }
+        
+        // Apply actual color with normal opacity
+        await applyColorToArea(areaId, areaName, areaType, selectedColor);
+        hideColorPickerPopup();
+        
+        // Update unified list
+        setTimeout(() => {
+            if (typeof window.updateSelectedAreasList === 'function') {
+                window.updateSelectedAreasList();
+            }
+            updateUnifiedContentList();
+        }, 500);
+    };
+    
+    const cancelHandler = () => {
+        // Remove preview layer
+        if (appState.map.getLayer(previewLayerId)) {
+            appState.map.removeLayer(previewLayerId);
+        }
+        const previewSourceId = `preview-source-${previewLayerId}`;
+        if (appState.map.getSource(previewSourceId)) {
+            appState.map.removeSource(previewSourceId);
+        }
+        hideColorPickerPopup();
+    };
+    
+    // Remove old listeners and add new ones
+    if (applyBtn) {
+        applyBtn.replaceWith(applyBtn.cloneNode(true));
+        const newApplyBtn = document.getElementById('apply-color-btn');
+        newApplyBtn.addEventListener('click', applyHandler);
+    }
+    
+    if (cancelBtn) {
+        cancelBtn.replaceWith(cancelBtn.cloneNode(true));
+        const newCancelBtn = document.getElementById('cancel-color-btn');
+        newCancelBtn.addEventListener('click', cancelHandler);
+    }
+}
+
+// ... existing code ...

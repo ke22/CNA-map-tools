@@ -1,0 +1,46 @@
+# GADM Data Files (too large for Git)
+data/gadm/*.gpkg
+data/gadm/*.geojson
+data/gadm/*.mbtiles
+data/gadm/*.geojsonl
+data/gadm/tiles/*.mbtiles
+data/gadm/optimized/*.geojson
+
+# Keep optimized folder structure but ignore large files
+!data/gadm/optimized/.gitkeep
+!data/gadm/tiles/.gitkeep
+
+# Node modules
+node_modules/
+npm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.temp
+
+# Environment variables and secrets
+.env
+.env.local
+.env.*.local
+*.key
+*.pem
+secrets/
+*.secret
+
+# API keys (if accidentally added)
+*api*key*.txt
+*secret*.txt
+.git.backup

@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>自动测试 - 主要国家选择和着色</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            margin-top: 0;
+        }
+        .test-controls {
+            display: flex;
+            gap: 10px;
+            margin: 20px 0;
+            flex-wrap: wrap;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 14px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .btn-primary {
+            background: #1976d2;
+            color: white;
+        }
+        .btn-primary:hover {
+            background: #1565c0;
+        }
+        .btn-success {
+            background: #388e3c;
+            color: white;
+        }
+        .btn-success:hover {
+            background: #2e7d32;
+        }
+        .btn-warning {
+            background: #f57c00;
+            color: white;
+        }
+        .btn-warning:hover {
+            background: #ef6c00;
+        }
+        .btn-danger {
+            background: #d32f2f;
+            color: white;
+        }
+        .btn-danger:hover {
+            background: #c62828;
+        }
+        .test-status {
+            margin: 20px 0;
+            padding: 15px;
+            border-radius: 4px;
+            display: none;
+        }
+        .test-status.running {
+            display: block;
+            background: #e3f2fd;
+            border-left: 4px solid #1976d2;
+        }
+        .test-status.success {
+            display: block;
+            background: #e8f5e9;
+            border-left: 4px solid #388e3c;
+        }
+        .test-status.error {
+            display: block;
+            background: #ffebee;
+            border-left: 4px solid #d32f2f;
+        }
+        .console-output {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 15px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            max-height: 400px;
+            overflow-y: auto;
+            margin-top: 20px;
+        }
+        .instructions {
+            background: #fff3e0;
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            border-left: 4px solid #f57c00;
+        }
+        .instructions h3 {
+            margin-top: 0;
+            color: #e65100;
+        }
+        .instructions ol {
+            margin: 10px 0;
+            padding-left: 20px;
+        }
+        .instructions li {
+            margin: 5px 0;
+        }
+        iframe {
+            width: 100%;
+            height: 600px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 自动测试 - 主要国家选择和着色功能</h1>
+        
+        <div class="instructions">
+            <h3>📋 使用说明</h3>
+            <ol>
+                <li>确保地图应用已经在主窗口中打开并完全加载</li>
+                <li>在主窗口的控制台中运行测试脚本（见下方）</li>
+                <li>或者点击下面的按钮在 iframe 中加载地图并测试</li>
+            </ol>
+        </div>
+        
+        <div class="test-controls">
+            <button class="btn-primary" onclick="openMainWindow()">🌐 打开主地图窗口</button>
+            <button class="btn-success" onclick="loadTestScript()">📜 加载测试脚本到主窗口</button>
+            <button class="btn-warning" onclick="runQuickTest()">⚡ 快速测试（关键国家）</button>
+            <button class="btn-danger" onclick="clearResults()">🗑️ 清空结果</button>
+        </div>
+        
+        <div id="test-status" class="test-status"></div>
+        
+        <div class="console-output" id="console-output">
+            <div>等待测试开始...</div>
+        </div>
+        
+        <div>
+            <h3>📊 测试选项</h3>
+            <label>
+                <input type="checkbox" id="test-all" checked>
+                测试所有国家 (26个)
+            </label><br>
+            <label>
+                <input type="checkbox" id="test-priority1">
+                只测试优先级 1 的国家（台湾、中国、美国）
+            </label><br>
+            <label>
+                <input type="checkbox" id="test-priority2">
+                测试优先级 1-2 的国家
+            </label>
+        </div>
+    </div>
+    
+    <script>
+        let mainWindow = null;
+        
+        function openMainWindow() {
+            mainWindow = window.open('index-enhanced.html', '_blank');
+            updateStatus('已打开主地图窗口，请等待地图加载完成后再运行测试', 'running');
+        }
+        
+        function loadTestScript() {
+            if (!mainWindow) {
+                alert('请先打开主地图窗口');
+                return;
+            }
+            
+            try {
+                // 创建 script 标签加载测试脚本
+                const script = mainWindow.document.createElement('script');
+                script.src = 'test-countries-auto.js';
+                script.onload = function() {
+                    updateStatus('✅ 测试脚本已加载到主窗口', 'success');
+                    addConsoleOutput('✅ 测试脚本已加载');
+                    addConsoleOutput('可以在主窗口的控制台中使用以下函数：');
+                    addConsoleOutput('  - await testMainCountries()');
+                    addConsoleOutput('  - await quickTest()');
+                    addConsoleOutput('  - await testSingleCountry("Taiwan")');
+                };
+                script.onerror = function() {
+                    updateStatus('❌ 无法加载测试脚本', 'error');
+                    addConsoleOutput('❌ 错误：无法加载 test-countries-auto.js');
+                };
+                mainWindow.document.body.appendChild(script);
+            } catch (error) {
+                updateStatus('❌ 加载失败: ' + error.message, 'error');
+                addConsoleOutput('❌ 错误: ' + error.message);
+            }
+        }
+        
+        async function runQuickTest() {
+            if (!mainWindow) {
+                alert('请先打开主地图窗口并加载测试脚本');
+                return;
+            }
+            
+            try {
+                updateStatus('⚡ 开始快速测试...', 'running');
+                addConsoleOutput('⚡ 开始快速测试...');
+                
+                if (mainWindow.quickTest) {
+                    await mainWindow.quickTest();
+                    updateStatus('✅ 快速测试完成', 'success');
+                } else {
+                    throw new Error('测试脚本未加载，请先加载测试脚本');
+                }
+            } catch (error) {
+                updateStatus('❌ 测试失败: ' + error.message, 'error');
+                addConsoleOutput('❌ 错误: ' + error.message);
+            }
+        }
+        
+        function clearResults() {
+            document.getElementById('console-output').innerHTML = '<div>等待测试开始...</div>';
+            document.getElementById('test-status').classList.remove('running', 'success', 'error');
+            document.getElementById('test-status').style.display = 'none';
+        }
+        
+        function updateStatus(message, type) {
+            const statusEl = document.getElementById('test-status');
+            statusEl.textContent = message;
+            statusEl.className = 'test-status ' + type;
+        }
+        
+        function addConsoleOutput(message) {
+            const consoleEl = document.getElementById('console-output');
+            const div = document.createElement('div');
+            div.textContent = '[' + new Date().toLocaleTimeString() + '] ' + message;
+            consoleEl.appendChild(div);
+            consoleEl.scrollTop = consoleEl.scrollHeight;
+        }
+        
+        // 监听来自主窗口的消息
+        window.addEventListener('message', function(event) {
+            if (event.data && event.data.type === 'test-log') {
+                addConsoleOutput(event.data.message);
+            } else if (event.data && event.data.type === 'test-result') {
+                updateStatus(event.data.message, event.data.status);
+            }
+        });
+    </script>
+</body>
+</html>
+

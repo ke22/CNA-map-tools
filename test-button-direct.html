@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Button Test</title>
+    <style>
+        body { padding: 20px; font-family: Arial; }
+        .btn-toggle { padding: 10px 20px; margin: 5px; cursor: pointer; border: 1px solid #ccc; }
+        .btn-toggle.active { background: blue; color: white; }
+    </style>
+</head>
+<body>
+    <h1>Button Click Test</h1>
+    <button class="btn-toggle" data-type="country">國家</button>
+    <button class="btn-toggle" data-type="administration">行政區</button>
+    
+    <div id="output" style="margin-top: 20px; padding: 10px; background: #f0f0f0;"></div>
+    
+    <script>
+        const buttons = document.querySelectorAll('.btn-toggle[data-type]');
+        const output = document.getElementById('output');
+        
+        console.log('Found buttons:', buttons.length);
+        
+        buttons.forEach(btn => {
+            console.log('Setting up button:', btn.dataset.type);
+            
+            btn.addEventListener('click', function(e) {
+                e.preventDefault();
+                const type = this.dataset.type;
+                console.log('Button clicked:', type);
+                
+                output.innerHTML = `Clicked: ${type}`;
+                
+                // Update active state
+                buttons.forEach(b => b.classList.remove('active'));
+                this.classList.add('active');
+            });
+        });
+        
+        console.log('Setup complete');
+    </script>
+</body>
+</html>
