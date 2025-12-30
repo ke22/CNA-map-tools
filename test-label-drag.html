@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>中文标签拖曳功能 - 冒烟测试</title>
+    <style>
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+            padding: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+            background: #f5f5f5;
+        }
+        .test-container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .test-result {
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 4px;
+            font-family: monospace;
+        }
+        .test-pass {
+            background: #d4edda;
+            color: #155724;
+        }
+        .test-fail {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        .test-warn {
+            background: #fff3cd;
+            color: #856404;
+        }
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            border: none;
+            border-radius: 4px;
+            background: #007bff;
+            color: white;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        #test-output {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 4px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧪 中文标签拖曳功能 - 冒烟测试</h1>
+    
+    <div class="test-container" style="background: #fff3cd; border-left: 4px solid #ffc107;">
+        <h2>⚠️ 重要提示</h2>
+        <p><strong>此测试页面无法访问主页面的 appState 对象。</strong></p>
+        <p>请使用以下方法之一进行测试：</p>
+        <ol>
+            <li><strong>推荐方法：</strong>在主页面控制台运行测试
+                <ul>
+                    <li>打开主页面: <code>http://localhost:8000/index-enhanced.html</code></li>
+                    <li>打开浏览器控制台 (F12)</li>
+                    <li>复制 <code>test-label-drag-console.js</code> 的内容并粘贴运行</li>
+                </ul>
+            </li>
+            <li>或者：在主页面中打开此测试页面（使用 iframe 或直接在控制台运行测试脚本）</li>
+        </ol>
+    </div>
+    
+    <div class="test-container">
+        <h2>测试控制</h2>
+        <button onclick="runSmokeTest()">运行冒烟测试</button>
+        <button onclick="testLabelDrag()">测试标签拖曳（需要先添加标签）</button>
+        <button onclick="clearOutput()">清除输出</button>
+        <button onclick="window.open('http://localhost:8000/index-enhanced.html', '_blank')">打开主页面</button>
+    </div>
+    
+    <div class="test-container">
+        <h2>测试输出</h2>
+        <div id="test-output">点击"运行冒烟测试"按钮开始测试...</div>
+    </div>
+    
+    <script>
+        function log(message, type = 'info') {
+            const output = document.getElementById('test-output');
+            const timestamp = new Date().toLocaleTimeString();
+            const prefix = type === 'error' ? '❌' : type === 'success' ? '✅' : type === 'warn' ? '⚠️' : 'ℹ️';
+            output.textContent += `[${timestamp}] ${prefix} ${message}\n`;
+            output.scrollTop = output.scrollHeight;
+        }
+        
+        function clearOutput() {
+            document.getElementById('test-output').textContent = '';
+        }
+        
+        function checkMainPageContext() {
+            // 检查是否在主页面上下文中
+            if (typeof window.appState === 'undefined') {
+                log('⚠️ 检测到不在主页面上下文中', 'warn');
+                log('', 'info');
+                log('📋 解决方案:', 'info');
+                log('   方法 1: 在主页面 (index-enhanced.html) 的控制台中运行测试', 'info');
+                log('   方法 2: 使用 test-label-drag-console.js 脚本', 'info');
+                log('', 'info');
+                log('💡 推荐方法:', 'info');
+                log('   1. 打开主页面: http://localhost:8000/index-enhanced.html', 'info');
+                log('   2. 打开浏览器控制台 (F12)', 'info');
+                log('   3. 复制 test-label-drag-console.js 的内容并粘贴运行', 'info');
+                return false;
+            }
+            return true;
+        }
+        
+        function runSmokeTest() {
+            clearOutput();
+            log('开始中文标签拖曳功能冒烟测试...', 'info');
+            
+            // 检查是否在主页面上下文中
+            if (!checkMainPageContext()) {
+                return;
+            }
+            
+            const tests = [];
+            let passed = 0;
+            let failed = 0;
+            let warned = 0;
+            
+            // 测试 1: 检查 appState 是否存在
+            tests.push(() => {
+                if (!window.appState) {
+                    return { name: 'appState 对象', status: 'fail', message: 'appState 未定义' };
+                }
+                return { name: 'appState 对象', status: 'pass', message: 'appState 存在' };
+            });
+            
+            // 测试 2: 检查地图是否加载
+            tests.push(() => {
+                if (!window.appState || !window.appState.map) {
+                    return { name: '地图加载', status: 'fail', message: '地图未初始化' };
+                }
+                if (!window.appState.map.loaded()) {
+                    return { name: '地图加载', status: 'warn', message: '地图正在加载中' };
+                }
+                return { name: '地图加载', status: 'pass', message: '地图已加载' };
+            });
+            
+            // 测试 3: 检查标签数据源
+            tests.push(() => {
+                if (!window.appState || !window.appState.map) {
+                    return { name: '标签数据源', status: 'fail', message: '地图未初始化' };
+                }
+                const source = window.appState.map.getSource('custom-chinese-labels');
+                if (!source) {
+                    return { name: '标签数据源', status: 'warn', message: '标签数据源不存在（可能还没有选中区域）' };
+                }
+                return { name: '标签数据源', status: 'pass', message: '标签数据源存在' };
+            });
+            
+            // 测试 4: 检查标签图层
+            tests.push(() => {
+                if (!window.appState || !window.appState.map) {
+                    return { name: '标签图层', status: 'fail', message: '地图未初始化' };
+                }
+                const layer = window.appState.map.getLayer('custom-chinese-labels');
+                if (!layer) {
+                    return { name: '标签图层', status: 'warn', message: '标签图层不存在（可能还没有选中区域）' };
+                }
+                return { name: '标签图层', status: 'pass', message: '标签图层存在' };
+            });
+            
+            // 测试 5: 检查 hit-area 图层
+            tests.push(() => {
+                if (!window.appState || !window.appState.map) {
+                    return { name: 'Hit-area 图层', status: 'fail', message: '地图未初始化' };
+                }
+                const layer = window.appState.map.getLayer('custom-chinese-labels-hit-area');
+                if (!layer) {
+                    return { name: 'Hit-area 图层', status: 'warn', message: 'Hit-area 图层不存在（可能还没有选中区域）' };
+                }
+                return { name: 'Hit-area 图层', status: 'pass', message: 'Hit-area 图层存在' };
+            });
+            
+            // 测试 6: 检查拖曳状态对象
+            tests.push(() => {
+                if (!window.appState || !window.appState.labelDragState) {
+                    return { name: '拖曳状态对象', status: 'fail', message: '拖曳状态对象不存在' };
+                }
+                const dragState = window.appState.labelDragState;
+                const requiredProps = ['isDragging', 'draggedFeatureId', 'dragStartPoint', 'hasMoved'];
+                const missingProps = requiredProps.filter(prop => !(prop in dragState));
+                if (missingProps.length > 0) {
+                    return { name: '拖曳状态对象', status: 'fail', message: `缺少属性: ${missingProps.join(', ')}` };
+                }
+                return { name: '拖曳状态对象', status: 'pass', message: '拖曳状态对象结构正确' };
+            });
+            
+            // 测试 7: 检查事件处理器
+            tests.push(() => {
+                if (!window.appState || !window.appState.map) {
+                    return { name: '事件处理器', status: 'fail', message: '地图未初始化' };
+                }
+                if (!window.appState.map._labelDragHandlers) {
+                    return { name: '事件处理器', status: 'fail', message: '事件处理器未注册' };
+                }
+                const handlers = window.appState.map._labelDragHandlers;
+                const requiredHandlers = ['mousedown', 'mousemove', 'mouseup', 'mouseenter', 'mouseleave'];
+                const missingHandlers = requiredHandlers.filter(handler => !(handler in handlers));
+                if (missingHandlers.length > 0) {
+                    return { name: '事件处理器', status: 'fail', message: `缺少处理器: ${missingHandlers.join(', ')}` };
+                }
+                return { name: '事件处理器', status: 'pass', message: '所有事件处理器已注册' };
+            });
+            
+            // 测试 8: 检查 labelPositions
+            tests.push(() => {
+                if (!window.appState || !window.appState.labelPositions) {
+                    return { name: '标签位置存储', status: 'warn', message: 'labelPositions 对象不存在（将在首次拖曳时创建）' };
+                }
+                return { name: '标签位置存储', status: 'pass', message: 'labelPositions 对象存在' };
+            });
+            
+            // 运行所有测试
+            log('='.repeat(60), 'info');
+            
+            tests.forEach((test, index) => {
+                try {
+                    const result = test();
+                    const statusIcon = result.status === 'pass' ? '✅' : result.status === 'fail' ? '❌' : '⚠️';
+                    log(`${index + 1}. ${result.name}: ${statusIcon} ${result.message}`, result.status === 'pass' ? 'success' : result.status === 'fail' ? 'error' : 'warn');
+                    
+                    if (result.status === 'pass') {
+                        passed++;
+                    } else if (result.status === 'fail') {
+                        failed++;
+                    } else {
+                        warned++;
+                    }
+                } catch (error) {
+                    log(`${index + 1}. 测试执行失败: ${error.message}`, 'error');
+                    failed++;
+                }
+            });
+            
+            log('='.repeat(60), 'info');
+            log(`\n测试总结:`, 'info');
+            log(`  ✅ 通过: ${passed}`, 'success');
+            log(`  ❌ 失败: ${failed}`, failed > 0 ? 'error' : 'info');
+            log(`  ⚠️ 警告: ${warned}`, warned > 0 ? 'warn' : 'info');
+            
+            if (failed === 0) {
+                log('\n🎉 所有关键测试通过！中文标签拖曳功能应该可以正常工作。', 'success');
+            } else {
+                log('\n⚠️ 部分测试失败，请检查上述错误信息。', 'error');
+            }
+            
+            // 提供手动测试指引
+            log('\n📝 手动测试指引:', 'info');
+            log('  1. 在主页面使用 AI 分析功能添加一些区域', 'info');
+            log('  2. 等待中文标签出现', 'info');
+            log('  3. 尝试点击并拖曳中文标签', 'info');
+            log('  4. 验证标签是否独立移动（地图不应移动）', 'info');
+            log('  5. 检查浏览器控制台是否有错误信息', 'info');
+        }
+        
+        function testLabelDrag() {
+            clearOutput();
+            log('测试标签拖曳功能...', 'info');
+            
+            // 检查是否在主页面上下文中
+            if (!checkMainPageContext()) {
+                return;
+            }
+            
+            if (!window.appState || !window.appState.map) {
+                log('❌ 地图未初始化，无法测试', 'error');
+                log('💡 提示: 请确保在主页面 (index-enhanced.html) 中运行此测试', 'warn');
+                return;
+            }
+            
+            const source = window.appState.map.getSource('custom-chinese-labels');
+            if (!source) {
+                log('⚠️ 标签数据源不存在，请先添加一些区域', 'warn');
+                return;
+            }
+            
+            const data = source._data;
+            if (!data || !data.features || data.features.length === 0) {
+                log('⚠️ 没有标签，请先添加一些区域', 'warn');
+                return;
+            }
+            
+            log(`找到 ${data.features.length} 个标签`, 'success');
+            
+            // 检查拖曳状态
+            const dragState = window.appState.labelDragState;
+            if (dragState) {
+                log(`拖曳状态: isDragging=${dragState.isDragging}, hasMoved=${dragState.hasMoved}`, 'info');
+            }
+            
+            // 检查事件处理器
+            if (window.appState.map._labelDragHandlers) {
+                log('✅ 事件处理器已注册', 'success');
+            } else {
+                log('❌ 事件处理器未注册', 'error');
+            }
+            
+            log('\n✅ 标签拖曳功能已就绪，可以开始手动测试', 'success');
+        }
+        
+        // 页面加载完成后自动运行测试
+        window.addEventListener('load', function() {
+            setTimeout(() => {
+                if (typeof window.appState === 'undefined') {
+                    log('⚠️ 检测到不在主页面上下文中', 'warn');
+                    log('', 'info');
+                    log('📋 请使用以下方法之一进行测试:', 'info');
+                    log('', 'info');
+                    log('方法 1: 在主页面控制台运行测试（推荐）', 'info');
+                    log('   1. 打开主页面: http://localhost:8000/index-enhanced.html', 'info');
+                    log('   2. 打开浏览器控制台 (F12)', 'info');
+                    log('   3. 复制 test-label-drag-console.js 的内容并粘贴运行', 'info');
+                    log('', 'info');
+                    log('方法 2: 使用此测试页面', 'info');
+                    log('   注意: 此测试页面无法访问主页面的 appState', 'warn');
+                    log('   建议使用主页面控制台进行测试', 'info');
+                } else {
+                    log('✅ 检测到主页面上下文，可以开始测试', 'success');
+                }
+            }, 1000);
+        });
+    </script>
+</body>
+</html>
+

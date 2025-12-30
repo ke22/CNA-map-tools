@@ -7,8 +7,78 @@
  * - Optimized for 1-3 countries
  */
 
+// Prevent duplicate initialization
+if (typeof window.__MAP_APP_INITIALIZED__ !== 'undefined') {
+    console.error('❌ app-enhanced.js 已被加载，检测到重复的 script 标签！');
+    console.error('请检查 HTML 文件中是否有重复的 <script src="js/app-enhanced.js"> 标签');
+    throw new Error('app-enhanced.js 已被加载，请检查是否有重复的 script 标签');
+}
+window.__MAP_APP_INITIALIZED__ = true;
+
+// Check if running on file:// protocol (CORS will block resources)
+function checkProtocol() {
+    if (window.location.protocol === 'file:') {
+        const errorMsg = `
+⚠️ 檢測到 file:// 協議！
+
+此應用必須通過 HTTP 服務器運行，否則會出現 CORS 錯誤。
+
+請執行以下命令啟動服務器：
+  cd /Users/yulincho/Documents/01_Github/map
+  npm start
+  或
+  node server-combined.js
+
+然後訪問：http://localhost:3000/index-enhanced.html
+
+如果沒有服務器，可以使用：
+  npx live-server --port=8080
+`;
+        console.error(errorMsg);
+        
+        // Show blocking error message
+        document.body.innerHTML = `
+            <div style="padding: 40px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 600px; margin: 100px auto; background: #fff; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
+                <h1 style="color: #d32f2f; margin-bottom: 20px;">⚠️ 協議錯誤</h1>
+                <p style="color: #333; line-height: 1.6; margin-bottom: 20px;">
+                    此應用必須通過 <strong>HTTP 服務器</strong> 運行，不能直接用瀏覽器打開 HTML 文件。
+                </p>
+                <div style="background: #f5f5f5; padding: 20px; border-radius: 4px; margin-bottom: 20px;">
+                    <h3 style="margin-top: 0; color: #1976d2;">解決方案：</h3>
+                    <ol style="line-height: 2;">
+                        <li>打開終端，進入項目目錄：<br>
+                            <code style="background: #fff; padding: 4px 8px; border-radius: 4px; font-size: 14px;">cd /Users/yulincho/Documents/01_Github/map</code>
+                        </li>
+                        <li>啟動服務器：<br>
+                            <code style="background: #fff; padding: 4px 8px; border-radius: 4px; font-size: 14px;">npm start</code><br>
+                            或<br>
+                            <code style="background: #fff; padding: 4px 8px; border-radius: 4px; font-size: 14px;">node server-combined.js</code>
+                        </li>
+                        <li>訪問：<br>
+                            <code style="background: #fff; padding: 4px 8px; border-radius: 4px; font-size: 14px;">http://localhost:3000/index-enhanced.html</code>
+                        </li>
+                    </ol>
+                </div>
+                <p style="color: #666; font-size: 14px;">
+                    如果沒有安裝 Node.js，可以使用：<br>
+                    <code style="background: #fff; padding: 4px 8px; border-radius: 4px; font-size: 14px;">npx live-server --port=8080</code>
+                </p>
+            </div>
+        `;
+        throw new Error('應用必須通過 HTTP 服務器運行');
+    }
+}
+
 // Initialize when DOM is ready
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', function () {
+    // Check protocol first (before any other initialization)
+    try {
+        checkProtocol();
+    } catch (e) {
+        // Error already displayed, stop initialization
+        return;
+    }
+
     // Use Logger if available, fallback to console.log
     const log = (typeof Logger !== 'undefined') ? Logger.info : console.log;
     log('DOM Content Loaded');
@@ -27,7 +97,7 @@ document.addEventListener('DOMContentLoaded', function() {
     initializeApp();
     
     // Also try binding events after a short delay as backup
-    setTimeout(function() {
+    setTimeout(function () {
         const debugLog = (typeof Logger !== 'undefined') ? Logger.debug : console.log;
         debugLog('Backup: Re-checking button setup...');
         const buttons = document.querySelectorAll('.btn-toggle[data-type]');
@@ -41,7 +111,15 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 // Application State
-const appState = {
+// Check if appState already exists (prevent duplicate declaration)
+if (typeof window.appState !== 'undefined') {
+    console.error('❌ appState 已存在，检测到重复的 script 标签！');
+    console.error('请检查 HTML 文件中是否有重复的 <script src="js/app-enhanced.js"> 标签');
+    throw new Error('appState 已存在，请检查是否有重复的 script 标签');
+}
+// Use window.appState to prevent parse-time SyntaxError if script is loaded twice
+if (!window.appState) {
+    window.appState = {
     map: null,
     currentAreaType: 'country', // 'country' | 'administration'
     administrationLevel: null, // 'state' | 'city' | null (detected on click)
@@ -76,8 +154,21 @@ const appState = {
     textMode: false,               // When true, clicking map adds text label
     imageOverlays: [],             // Array of { id, image: Image/Canvas, bounds: [[sw], [ne]], layerId: string }
     labelPositions: {},            // ARCHIVED: Object storing custom label positions: { areaId: { offset: [x, y] } }
-    mapTextLabels: []              // Array of text labels on map: [{ id, text, coordinates: [lng, lat], fontSize, color, align }]
-};
+        mapTextLabels: [],             // Array of text labels on map: [{ id, text, coordinates: [lng, lat], fontSize, color, align }]
+        // Label dragging state (initialized early for smoke tests)
+        labelDragState: {
+            isDragging: false,
+            draggedFeatureId: null,
+            dragStartPoint: null,
+            dragStartOffset: null,
+            hasMoved: false,
+            globalMoveHandler: null,
+            globalUpHandler: null
+        }
+    };
+}
+// Create local reference for convenience (allows using appState instead of window.appState)
+const appState = window.appState;
 
 // Initialize Application
 function initializeApp() {
@@ -103,7 +194,7 @@ function initializeMap() {
     });
 
     // Wait for map to load
-    appState.map.on('load', function() {
+    appState.map.on('load', function () {
         // Set space-like background for Globe Sky (behind the earth only)
         setGlobeSkyBackground();
         
@@ -221,15 +312,28 @@ function initializeMap() {
     // TODO: Re-enable after fixing position accuracy with scaling
     
     // Also add mousedown for better click detection
-    appState.map.on('mousedown', function(e) {
+    appState.map.on('mousedown', function (e) {
         // This helps with click detection
     });
     
     // Handle map mouse move for hover effects
-    appState.map.on('mousemove', handleMapHover);
+    // 保存处理器引用以便后续临时禁用
+    // Debounced hover handler for performance
+    let hoverTimeout = null;
+    const debouncedHandleMapHover = (e) => {
+        if (hoverTimeout) {
+            clearTimeout(hoverTimeout);
+        }
+        hoverTimeout = setTimeout(() => {
+            handleMapHover(e);
+        }, 300); // 300ms debounce
+    };
+    
+    appState.map._mapHoverHandler = debouncedHandleMapHover;
+    appState.map.on('mousemove', debouncedHandleMapHover);
     
     // Handle errors - but don't log every error to avoid spam
-    appState.map.on('error', function(e) {
+    appState.map.on('error', function (e) {
         // Only log if it's not a layer insertion error (common and harmless)
         if (e.error && e.error.message && !e.error.message.includes('layer') && !e.error.message.includes('before')) {
             console.error('Map error:', e.error.message);
@@ -286,7 +390,18 @@ async function loadBoundarySourceForType(areaType, createVisibleLayer = false) {
             console.log(`✅ Successfully loaded GADM data for ${areaType}`);
             return;
         } catch (error) {
+            // Only log in dev mode
+            if (IS_DEV_MODE) {
             console.warn(`⚠️ Failed to load GADM data for ${areaType}:`, error.message);
+            }
+            
+            // Show user-friendly error message
+            if (typeof showToast === 'function') {
+                const areaTypeName = areaType === 'country' ? '國家' : 
+                                    areaType === 'state' ? '州/省' : '城市';
+                showToast(`無法載入 ${areaTypeName} 邊界數據。請檢查數據文件是否存在。`, 'error', 5000);
+            }
+            
             // Don't throw here - fallback to Mapbox if GADM fails (for backward compatibility)
             if (areaType === 'state' || areaType === 'city') {
                 throw new Error(`行政區數據不可用。請準備 GADM 數據文件。`);
@@ -298,8 +413,8 @@ async function loadBoundarySourceForType(areaType, createVisibleLayer = false) {
     
     // Fallback: Use Mapbox Boundaries (only if GADM is not available or fails for country)
     // This maintains backward compatibility but GADM is preferred
-    if (areaType === 'country' && !window.GADM_LOADER) {
-        console.log(`⚠️ Falling back to Mapbox Boundaries for country (GADM not available)`);
+    if (areaType === 'country') {
+        console.log(`⚠️ Falling back to Mapbox Boundaries for country (GADM not available or failed)`);
     const sourceId = getSourceIdForType(areaType);
     const sourceUrl = getSourceUrlForType(areaType);
     
@@ -346,7 +461,7 @@ async function loadBoundarySourceForType(areaType, createVisibleLayer = false) {
         });
 
         // Multiple event handlers to catch source loading
-        appState.map.once('sourcedata', function(e) {
+            appState.map.once('sourcedata', function (e) {
             if (e.sourceId === sourceId && e.isSourceLoaded) {
                 appState.sources[sourceTypeKey] = {
                     id: sourceId,
@@ -373,7 +488,7 @@ async function loadBoundarySourceForType(areaType, createVisibleLayer = false) {
         });
         
         // Also listen for source loaded event
-        appState.map.once('data', function(e) {
+            appState.map.once('data', function (e) {
             if (e.sourceId === sourceId && e.isSourceLoaded) {
                 if (!appState.sources[sourceTypeKey]) {
                     appState.sources[sourceTypeKey] = {
@@ -386,7 +501,7 @@ async function loadBoundarySourceForType(areaType, createVisibleLayer = false) {
         });
 
         // Handle source errors (including 402 Payment Required)
-        appState.map.once('error', function(e) {
+            appState.map.once('error', function (e) {
             if (e.error && e.error.message && e.error.message.includes(sourceId)) {
                 const is402 = e.error.status === 402 || e.error.message.includes('402');
                 if (is402) {
@@ -404,7 +519,7 @@ async function loadBoundarySourceForType(areaType, createVisibleLayer = false) {
         });
         
         // Also listen for network errors
-        window.addEventListener('error', function(e) {
+            window.addEventListener('error', function (e) {
             if (e.target && e.target.src && e.target.src.includes(sourceId) && e.target.src.includes('402')) {
                 console.warn(`⚠️ 402 ERROR: ${sourceId} - This source requires paid Mapbox access.`);
                 if (appState.sources[sourceTypeKey]) {
@@ -485,14 +600,16 @@ function createVisibleBoundaryLayer(areaType) {
         const initialWidth = getAdaptiveBoundaryLineWidth(areaType);
         const maxWidth = areaType === 'country' ? 0.2 : 0.3; // Country boundaries are thinner (reduced)
         
+    // CRITICAL FIX: For click detection, administrative boundary layers must always be visible when active
+    // The boundary line visibility toggle should only control visual appearance (opacity), not clickability
         // Set visibility based on boundary line toggle (separate for country and admin)
-        let visibility = 'none';
+    let visibility = 'visible'; // Default to visible for click detection
         if (areaType === 'country') {
             // Country boundaries: show when country boundary toggle is on
-            visibility = appState.countryBoundaryVisible ? 'visible' : 'none';
+        visibility = appState.countryBoundaryVisible ? 'visible' : 'visible'; // Always visible for click detection
         } else if (areaType === 'state' || areaType === 'city') {
-            // Admin boundaries: show state boundaries when admin boundary toggle is on
-            visibility = (areaType === 'state' && appState.adminBoundaryVisible) ? 'visible' : 'none';
+        // Admin boundaries: always visible for click detection (opacity will be controlled by toggle)
+        visibility = 'visible';
         }
         
         const layerOptions = {
@@ -557,17 +674,10 @@ function createVisibleBoundaryLayer(areaType) {
                 const initialWidth = getAdaptiveBoundaryLineWidth(areaType);
                 const maxWidth = areaType === 'country' ? 0.2 : 0.3; // Country boundaries are thinner (reduced)
                 
+                // CRITICAL FIX: For click detection, layers must always be visible when active
                 // Set visibility based on area type
-                let visibility = 'none';
-                if (areaType === 'country') {
-                    if (appState.countryBoundaryVisible) {
-                        visibility = 'visible';
-                    }
-                } else {
-                    if (areaType === 'state' && appState.adminBoundaryVisible) {
-                        visibility = 'visible';
-                    }
-                }
+                let visibility = 'visible'; // Always visible for click detection
+                // Note: Opacity will be controlled by boundary line visibility toggle
                 
                 const fallbackLayerOptions = {
                     id: layerId,
@@ -700,7 +810,7 @@ function ensureBoundaryLayerOnTop(areaType) {
                 try {
                     const visibility = appState.map.getLayoutProperty(boundaryLayerId, 'visibility');
                     if (visibility !== undefined) layout.visibility = visibility;
-                } catch(e) {}
+                } catch (e) { }
                 
                 // Get all paint properties (for line layer)
                 try {
@@ -710,7 +820,7 @@ function ensureBoundaryLayerOnTop(areaType) {
                     if (lineWidth !== undefined) paint['line-width'] = lineWidth;
                     const lineOpacity = appState.map.getPaintProperty(boundaryLayerId, 'line-opacity');
                     if (lineOpacity !== undefined) paint['line-opacity'] = lineOpacity;
-                } catch(e) {}
+                } catch (e) { }
                 
                 // Remove old layer
                 appState.map.removeLayer(boundaryLayerId);
@@ -761,7 +871,7 @@ function ensureBoundaryLayerOnTop(areaType) {
                 try {
                     const visibility = appState.map.getLayoutProperty(boundaryLayerId, 'visibility');
                     if (visibility !== undefined) layout.visibility = visibility;
-                } catch(e) {}
+                } catch (e) { }
                 // Get all paint properties (for line layer - boundary layers are now line type)
                 try {
                     const lineColor = appState.map.getPaintProperty(boundaryLayerId, 'line-color');
@@ -770,7 +880,7 @@ function ensureBoundaryLayerOnTop(areaType) {
                     if (lineWidth !== undefined) paint['line-width'] = lineWidth;
                     const lineOpacity = appState.map.getPaintProperty(boundaryLayerId, 'line-opacity');
                     if (lineOpacity !== undefined) paint['line-opacity'] = lineOpacity;
-                } catch(e) {}
+                } catch (e) { }
                 
                 appState.map.removeLayer(boundaryLayerId);
                 
@@ -1009,6 +1119,24 @@ function isClickOnMarker(e) {
  * Tries all boundary levels (city → state → country) to find what was clicked
  */
 function handleMapClick(e) {
+    // 如果正在拖曳中文标签，跳过处理（避免干扰拖曳）
+    if (appState.labelDragState && appState.labelDragState.isDragging) {
+        console.log('📍 正在拖曳中文標籤，跳過地圖點擊處理');
+        return;
+    }
+
+    // 如果正在拖曳文字标签，跳过处理（避免干扰拖曳）
+    if (appState.textLabelDragState && appState.textLabelDragState.isDragging) {
+        console.log('📍 正在拖曳文字標籤，跳過地圖點擊處理');
+        return;
+    }
+
+    // 如果正在移动中文标签（点击放置），跳过处理（避免触发填色 popup）
+    if (appState._isMovingLabel || (appState.labelSelectState && appState.labelSelectState.selectedLabelId)) {
+        console.log('📍 正在移動中文標籤，跳過地圖點擊處理');
+        return;
+    }
+
     // 優先檢查：是否點擊了標記元素
     // 使用專門的函數進行多層檢測
     if (isClickOnMarker(e)) {
@@ -1029,18 +1157,18 @@ function handleMapClick(e) {
         // 如果 hit-area 層不存在，忽略錯誤
     }
     
-    // ARCHIVED: 優先檢查：是否點擊了標籤（用於拖拽）
-    // try {
-    //     const labelFeatures = appState.map.queryRenderedFeatures(e.point, {
-    //         layers: ['custom-chinese-labels-hit-area']
-    //     });
-    //     if (labelFeatures.length > 0) {
-    //         console.log('📍 檢測到點擊標籤，跳過地圖點擊處理（由拖拽處理）');
-    //         return; // 讓拖拽事件處理，不執行地圖點擊邏輯
-    //     }
-    // } catch (error) {
-    //     // 如果 hit-area 層不存在，忽略錯誤
-    // }
+    // 優先檢查：是否點擊了中文標籤（用於拖拽）
+    try {
+        const labelFeatures = appState.map.queryRenderedFeatures(e.point, {
+            layers: ['custom-chinese-labels-hit-area']
+        });
+        if (labelFeatures.length > 0) {
+            console.log('📍 檢測到點擊中文標籤，跳過地圖點擊處理（由拖拽處理）');
+            return; // 讓拖拽事件處理，不執行地圖點擊邏輯
+        }
+    } catch (error) {
+        // 如果 hit-area 層不存在，忽略錯誤
+    }
     
     console.log('🖱️ Map clicked at:', e.point);
     
@@ -1335,6 +1463,16 @@ function tryBoundaryLevel(point, areaType) {
  * Handle Map Hover - Visual feedback
  */
 function handleMapHover(e) {
+    // 如果正在拖曳中文标签，跳过处理（避免干扰拖曳）
+    if (appState.labelDragState && appState.labelDragState.isDragging) {
+        return;
+    }
+
+    // 如果正在拖曳文字标签，跳过处理（避免干扰拖曳）
+    if (appState.textLabelDragState && appState.textLabelDragState.isDragging) {
+        return;
+    }
+
     const currentType = appState.currentAreaType;
     
     // If in administration mode, check both state and city
@@ -1359,18 +1497,26 @@ const layerCreationState = {};
  * Query features at point - IMPROVED VERSION
  * Queries from layer, with better error handling
  */
+// Development mode flag (only log detailed info in dev)
+const IS_DEV_MODE = window.location.hostname === 'localhost' || 
+                     window.location.hostname === '127.0.0.1' ||
+                     window.location.hostname === '';
+
 function queryFeaturesAtPoint(point, areaType) {
     const layerId = `visible-boundaries-${areaType}`;
     const lineLayerId = `${layerId}-lines`;
     
+    // Only log in development mode
+    if (IS_DEV_MODE) {
     console.log(`🔍 Querying for ${areaType} at point:`, point);
     console.log(`   Looking for layer: ${layerId}`);
+    }
     
     try {
         // Step 1: Check if GADM source exists and query directly from GADM layers
         const gadmSourceId = `gadm-${areaType}`;
         if (appState.map.getSource(gadmSourceId)) {
-            console.log(`   ✅ GADM source exists: ${gadmSourceId}`);
+            if (IS_DEV_MODE) console.log(`   ✅ GADM source exists: ${gadmSourceId}`);
             
             // Query from single boundary layer (line layer works for click detection)
             if (appState.map.getLayer(layerId)) {
@@ -1389,7 +1535,7 @@ function queryFeaturesAtPoint(point, areaType) {
                     });
                     
                     if (gadmFeatures.length > 0) {
-                        console.log(`✅ Found ${gadmFeatures.length} GADM features from layer ${layerId}`);
+                        if (IS_DEV_MODE) console.log(`✅ Found ${gadmFeatures.length} GADM features from layer ${layerId}`);
                         return gadmFeatures;
                     }
                 }
@@ -1414,16 +1560,16 @@ function queryFeaturesAtPoint(point, areaType) {
             });
             
             if (gadmFeatures.length > 0) {
-                console.log(`✅ Found ${gadmFeatures.length} features from GADM source ${gadmSourceId}`);
+                if (IS_DEV_MODE) console.log(`✅ Found ${gadmFeatures.length} features from GADM source ${gadmSourceId}`);
                 return gadmFeatures;
             } else {
-                console.warn(`⚠️ GADM source exists but no features found at point`);
+                if (IS_DEV_MODE) console.warn(`⚠️ GADM source exists but no features found at point`);
                 // For line layers, queryRenderedFeatures only finds features when clicking on the line
                 // We need to use querySourceFeatures and point-in-polygon test for clicks inside polygons
                 const source = appState.map.getSource(gadmSourceId);
                 if (source && source._data && source._data.features) {
                     const lngLat = appState.map.unproject(point);
-                    console.log(`   🔍 Using point-in-polygon test for GADM source with ${source._data.features.length} features at [${lngLat.lng}, ${lngLat.lat}]`);
+                    if (IS_DEV_MODE) console.log(`   🔍 Using point-in-polygon test for GADM source with ${source._data.features.length} features at [${lngLat.lng}, ${lngLat.lat}]`);
                     
                     // Use point-in-polygon test (need to implement or import from unified-interface)
                     const containingFeatures = source._data.features.filter(f => {
@@ -1440,7 +1586,7 @@ function queryFeaturesAtPoint(point, areaType) {
                     });
                     
                     if (containingFeatures.length > 0) {
-                        console.log(`✅ Found ${containingFeatures.length} features using point-in-polygon test`);
+                        if (IS_DEV_MODE) console.log(`✅ Found ${containingFeatures.length} features using point-in-polygon test`);
                         // Convert to format expected by Mapbox (add layer and source info)
                         return containingFeatures.map(f => ({
                             ...f,
@@ -1457,7 +1603,7 @@ function queryFeaturesAtPoint(point, areaType) {
         
         if (appState.map.getLayer(layerId)) {
             const visibility = appState.map.getLayoutProperty(layerId, 'visibility');
-            console.log(`   Checking layer ${layerId}: visibility = ${visibility}`);
+            if (IS_DEV_MODE) console.log(`   Checking layer ${layerId}: visibility = ${visibility}`);
             
             // Query even if visibility is 'none' for click detection (but prioritize visible layers)
             // Line layers can be queried even when not visible, but it's better to show visible ones
@@ -1466,26 +1612,27 @@ function queryFeaturesAtPoint(point, areaType) {
                 radius: 100 // Increased radius for better click detection on line layers
             });
             
-            console.log(`   Layer ${layerId} query returned ${layerFeatures.length} features`);
+            if (IS_DEV_MODE) console.log(`   Layer ${layerId} query returned ${layerFeatures.length} features`);
             
             if (layerFeatures.length > 0) {
-                console.log(`✅ Found ${layerFeatures.length} features from layer ${layerId}`);
+                if (IS_DEV_MODE) console.log(`✅ Found ${layerFeatures.length} features from layer ${layerId}`);
                 features = layerFeatures;
             }
         }
         
         // Step 3: If no features from specific layers, query all and filter
         if (features.length === 0) {
-            console.log(`   No features from specific layers, querying all features...`);
+            if (IS_DEV_MODE) console.log(`   No features from specific layers, querying all features...`);
             const allFeatures = appState.map.queryRenderedFeatures(point, {
                 radius: 100 // Increased radius for better click detection
             });
             
+            if (IS_DEV_MODE) {
             console.log(`📊 Total features found: ${allFeatures.length}`);
-            
             // Debug: Log all sources found
             const sourcesFound = [...new Set(allFeatures.map(f => f.source).filter(Boolean))];
             console.log(`   Sources found: ${sourcesFound.join(', ')}`);
+            }
             
             // Filter for features from our boundary layers
             features = allFeatures.filter(f => {
@@ -1493,13 +1640,13 @@ function queryFeaturesAtPoint(point, areaType) {
                 
                 // Priority 1: Accept if from our visible boundary layer
                 if (f.layer && f.layer.id === layerId) {
-                    console.log(`   ✅ MATCHED: Our layer (${f.layer.id})`);
+                    if (IS_DEV_MODE) console.log(`   ✅ MATCHED: Our layer (${f.layer.id})`);
                     return true;
                 }
                 
                 // Priority 2: Accept if from GADM source (for all levels)
                 if (f.source && f.source === gadmSourceId) {
-                    console.log(`   ✅ MATCHED: GADM source (${f.source})`);
+                    if (IS_DEV_MODE) console.log(`   ✅ MATCHED: GADM source (${f.source})`);
                     return true;
                 }
                 
@@ -1507,15 +1654,15 @@ function queryFeaturesAtPoint(point, areaType) {
                 if (props.GID_0 || props.GID_1 || props.GID_2) {
                     // Check level match
                     if (areaType === 'country' && props.GID_0) {
-                        console.log(`   ✅ MATCHED: GADM country feature (GID_0: ${props.GID_0})`);
+                        if (IS_DEV_MODE) console.log(`   ✅ MATCHED: GADM country feature (GID_0: ${props.GID_0})`);
                         return true;
                     }
                     if (areaType === 'state' && props.GID_1) {
-                        console.log(`   ✅ MATCHED: GADM state feature (GID_1: ${props.GID_1})`);
+                        if (IS_DEV_MODE) console.log(`   ✅ MATCHED: GADM state feature (GID_1: ${props.GID_1})`);
                         return true;
                     }
                     if (areaType === 'city' && props.GID_2) {
-                        console.log(`   ✅ MATCHED: GADM city feature (GID_2: ${props.GID_2})`);
+                        if (IS_DEV_MODE) console.log(`   ✅ MATCHED: GADM city feature (GID_2: ${props.GID_2})`);
                         return true;
                     }
                 }
@@ -1524,7 +1671,7 @@ function queryFeaturesAtPoint(point, areaType) {
                 if ((areaType === 'state' || areaType === 'city') && 
                     appState.selectedCountry &&
                     f.source && f.source.includes(`country-${areaType}-${appState.selectedCountry.id}`)) {
-                    console.log(`   ✅ MATCHED: Country-specific source (${f.source})`);
+                    if (IS_DEV_MODE) console.log(`   ✅ MATCHED: Country-specific source (${f.source})`);
                     return true;
                 }
                 
@@ -1545,10 +1692,10 @@ function queryFeaturesAtPoint(point, areaType) {
             });
         }
         
-        console.log(`📊 Filtered to ${features.length} ${areaType} features`);
+        if (IS_DEV_MODE) console.log(`📊 Filtered to ${features.length} ${areaType} features`);
         
-        // Debug: Log first feature if found
-        if (features.length > 0) {
+        // Debug: Log first feature if found (only in dev mode)
+        if (features.length > 0 && IS_DEV_MODE) {
             const firstFeature = features[0];
             console.log(`🔍 First feature details:`, {
                 source: firstFeature.source,
@@ -1562,8 +1709,11 @@ function queryFeaturesAtPoint(point, areaType) {
             });
         }
         
-        // If still no features, provide helpful diagnostic info
+        // If still no features, provide helpful diagnostic info (only in dev mode or on click)
+        // Note: This is called from handleMapClick, so we show user-friendly message
         if (features.length === 0) {
+            // Only show detailed diagnostics in dev mode
+            if (IS_DEV_MODE) {
             console.log(`⚠️  No ${areaType} features found at click point`);
             
             // Check what sources exist
@@ -1594,6 +1744,7 @@ function queryFeaturesAtPoint(point, areaType) {
             console.log(`   - Clicked location is outside the boundary`);
             console.log(`   - Layer is not fully rendered yet`);
             console.log(`   - Try clicking directly on boundary lines`);
+            }
         }
         
         return features || [];
@@ -1943,6 +2094,15 @@ function showColorPickerPopup(point, areaId, areaName, areaType, currentColor) {
         hideColorPickerPopup();
     };
     
+    // ESC 键取消
+    const escHandler = (e) => {
+        if (e.key === 'Escape' && popup.style.display !== 'none') {
+            cancelHandler();
+            document.removeEventListener('keydown', escHandler);
+        }
+    };
+    document.addEventListener('keydown', escHandler);
+    
     // Remove old listeners and add new ones
     applyBtn.replaceWith(applyBtn.cloneNode(true));
     cancelBtn.replaceWith(cancelBtn.cloneNode(true));
@@ -1966,7 +2126,7 @@ function showColorPickerPopup(point, areaId, areaName, areaType, currentColor) {
         colorPicker.addEventListener('change', syncHexFromPicker);
         
         // Sync color picker with hex input
-        popupHexInput.addEventListener('input', function() {
+        popupHexInput.addEventListener('input', function () {
             const hex = this.value.trim();
             if (/^#?[0-9A-Fa-f]{6}$/.test(hex)) {
                 const color = hex.startsWith('#') ? hex : '#' + hex;
@@ -2108,12 +2268,12 @@ async function createAreaLayer(areaId, areaName, areaType, color, layerId, bound
         const isAdmin = areaType === 'state' || areaType === 'city';
         const isCountry = areaType === 'country';
         
-        // Determine layer insertion point for z-ordering (only in overlay mode)
+        // Determine layer insertion point for z-ordering
+        // Always use z-ordering to ensure admin fills are above country fills
         let insertBefore = undefined;
-        if (appState.overlayMode) {
+        // Always enable z-ordering (not just in overlay mode) to ensure correct layer order
             insertBefore = getInsertionPoint(isAdmin ? 'admin' : 'country');
             console.log(`   Z-order: ${isAdmin ? 'admin' : 'country'} layer, insertBefore: ${insertBefore || 'end'}`);
-        }
         
         // Set opacity based on overlay mode and layer type
         // All fills should have transparency to see underlying map
@@ -2149,6 +2309,10 @@ async function createAreaLayer(areaId, areaName, areaType, color, layerId, bound
         }
         
         // Use provided boundaryMode or fall back to appState.boundaryMode
+        // CRITICAL FIX: Ensure boundaryMode defaults to 'fill' if not set
+        if (!appState.boundaryMode) {
+            appState.boundaryMode = 'fill';
+        }
         const areaBoundaryMode = boundaryMode !== null ? boundaryMode : (appState.boundaryMode || 'fill');
         
         // Add layer
@@ -2177,20 +2341,21 @@ async function createAreaLayer(areaId, areaName, areaType, color, layerId, bound
         }
         
         // Add layer with proper z-ordering
-        // Strategy: Insert fill layer BEFORE boundary layer (boundary lines should be on top of fills)
+        // Strategy: Admin fills above country fills, boundary lines above all fills
         const boundaryLayerId = `visible-boundaries-${areaType}`;
         const hasBoundaryLayer = appState.map.getLayer(boundaryLayerId);
         
         try {
-            // Priority 1: Insert fill layer BEFORE boundary layer if it exists (boundary lines on top)
-            if (hasBoundaryLayer) {
+            // Priority 1: Use overlay mode insertion point (ensures admin above country)
+            // This takes precedence to ensure correct country/admin ordering
+            if (insertBefore && appState.map.getLayer(insertBefore)) {
+                appState.map.addLayer(layerDef, insertBefore);
+                console.log(`✅ Created ${isAdmin ? 'admin' : 'country'} fill layer: ${layerId} (inserted before ${insertBefore} - admin above country)`);
+            }
+            // Priority 2: Insert fill layer BEFORE boundary layer if it exists (boundary lines on top)
+            else if (hasBoundaryLayer) {
                 appState.map.addLayer(layerDef, boundaryLayerId);
                 console.log(`✅ Created fill layer: ${layerId} (inserted before boundary layer ${boundaryLayerId} - boundary lines will be on top)`);
-            }
-            // Priority 2: Overlay mode insertion point (for country/admin ordering)
-            else if (insertBefore && appState.map.getLayer(insertBefore)) {
-                appState.map.addLayer(layerDef, insertBefore);
-                console.log(`✅ Created color layer: ${layerId} (inserted before ${insertBefore})`);
             }
             // Priority 3: Before labels if they exist
             else {
@@ -2225,8 +2390,8 @@ async function createAreaLayer(areaId, areaName, areaType, color, layerId, bound
             }
         }
         
-        // Track layer IDs for overlay mode
-        if (appState.overlayMode) {
+        // Track layer IDs for z-ordering (always track, not just in overlay mode)
+        // This ensures admin fills are always above country fills
             if (isAdmin) {
                 if (!appState.adminLayerIds.includes(layerId)) {
                     appState.adminLayerIds.push(layerId);
@@ -2234,7 +2399,6 @@ async function createAreaLayer(areaId, areaName, areaType, color, layerId, bound
             } else if (isCountry) {
                 if (!appState.countryLayerIds.includes(layerId)) {
                     appState.countryLayerIds.push(layerId);
-                }
             }
         }
         
@@ -2320,10 +2484,10 @@ async function createAreaLayer(areaId, areaName, areaType, color, layerId, bound
         showToast(`Error coloring ${areaName}`, 'error');
     }
     
-    // ARCHIVED: 更新自定义标签（在区域创建后）
-    // setTimeout(() => {
-    //     updateCustomChineseLabels();
-    // }, 500);
+    // 更新自定义标签（在区域创建后）
+    setTimeout(() => {
+        updateCustomChineseLabels();
+    }, 500);
 }
 
 /**
@@ -2367,36 +2531,72 @@ function findLastFillLayer() {
 
 /**
  * Determine the correct layer insertion point for z-ordering (overlay mode)
- * This ensures country layers are below admin layers
+ * This ensures admin fill layers are ALWAYS above country fill layers
+ * Order: Country fills (bottom) -> Admin fills (middle) -> Boundary lines (top)
  */
 function getInsertionPoint(layerType) {
     const labelLayers = appState.labelLayerIds;
+    const allLayers = appState.map.getStyle().layers;
     
     if (layerType === 'admin') {
-        // Admin areas go above ALL country layers, below labels
+        // Admin areas go above ALL country layers, below labels and boundary lines
         // Find the highest country layer to insert above it
         if (appState.countryLayerIds.length > 0) {
             // Get the last country layer (highest in z-order)
             const lastCountryLayer = appState.countryLayerIds[appState.countryLayerIds.length - 1];
-            console.log(`   Inserting admin layer above country layer: ${lastCountryLayer}`);
-            // Insert after the last country layer - find the layer after it
-            const allLayers = appState.map.getStyle().layers;
             const countryLayerIndex = allLayers.findIndex(l => l.id === lastCountryLayer);
-            if (countryLayerIndex >= 0 && countryLayerIndex < allLayers.length - 1) {
+
+            if (countryLayerIndex >= 0) {
+                // Find the next layer after the last country layer
+                // Skip any other country layers, but include boundary lines
+                for (let i = countryLayerIndex + 1; i < allLayers.length; i++) {
+                    const nextLayer = allLayers[i];
+                    // If we hit a boundary layer or label, insert before it
+                    if (nextLayer.id.startsWith('visible-boundaries-') ||
+                        labelLayers.includes(nextLayer.id)) {
+                        console.log(`   Inserting admin layer above country layer: ${lastCountryLayer}, before ${nextLayer.id}`);
+                        return nextLayer.id;
+                    }
+                    // If we hit another admin layer, insert before it (maintain order)
+                    if (appState.adminLayerIds.includes(nextLayer.id)) {
+                        console.log(`   Inserting admin layer above country layer: ${lastCountryLayer}, before admin layer ${nextLayer.id}`);
+                        return nextLayer.id;
+                    }
+                }
+                // If no suitable layer found, insert after last country layer
+                if (countryLayerIndex < allLayers.length - 1) {
+                    console.log(`   Inserting admin layer above country layer: ${lastCountryLayer}, after it`);
                 return allLayers[countryLayerIndex + 1].id;
             }
         }
-        // If no country layers, insert before labels
+        }
+        // If no country layers, insert before labels or boundary lines
+        // Find first boundary layer or label
+        for (let i = 0; i < allLayers.length; i++) {
+            const layer = allLayers[i];
+            if (layer.id.startsWith('visible-boundaries-') || labelLayers.includes(layer.id)) {
+                return layer.id;
+            }
+        }
         return labelLayers.length > 0 ? labelLayers[0] : undefined;
     } else if (layerType === 'country') {
         // Country layers go below admin layers
         // If there are admin layers, insert before the first one
         if (appState.adminLayerIds.length > 0) {
             const firstAdminLayer = appState.adminLayerIds[0];
+            const adminLayerIndex = allLayers.findIndex(l => l.id === firstAdminLayer);
+            if (adminLayerIndex >= 0) {
             console.log(`   Inserting country layer below admin layer: ${firstAdminLayer}`);
             return firstAdminLayer;
         }
-        // If no admin layers, insert before labels
+        }
+        // If no admin layers, insert before labels or boundary lines
+        for (let i = 0; i < allLayers.length; i++) {
+            const layer = allLayers[i];
+            if (layer.id.startsWith('visible-boundaries-') || labelLayers.includes(layer.id)) {
+                return layer.id;
+            }
+        }
         return labelLayers.length > 0 ? labelLayers[0] : undefined;
     }
     return undefined;
@@ -2509,19 +2709,28 @@ function updateBoundaryLineVisibility() {
     ['country', 'state', 'city'].forEach(areaType => {
         const layerId = `visible-boundaries-${areaType}`;
         if (appState.map.getLayer(layerId)) {
-            let shouldBeVisible = false;
-            
             if (areaType === 'country') {
-                // Country boundaries: show when country boundary toggle is on
-                shouldBeVisible = appState.countryBoundaryVisible;
+                // Country boundaries: control visibility with toggle
+                const shouldBeVisible = appState.countryBoundaryVisible;
+                const finalVisibility = shouldBeVisible ? 'visible' : 'none';
+                appState.map.setLayoutProperty(layerId, 'visibility', finalVisibility);
+                console.log(`✅ Updated ${layerId} visibility to: ${finalVisibility} (country: ${appState.countryBoundaryVisible})`);
             } else if (areaType === 'state' || areaType === 'city') {
-                // Admin boundaries: show state boundaries when admin boundary toggle is on
-                shouldBeVisible = (areaType === 'state' && appState.adminBoundaryVisible);
+                // CRITICAL FIX: Admin boundaries must always be visible for click detection
+                // When in administration mode, control opacity instead of visibility
+                // This ensures layers are always clickable but can be visually hidden
+                if (appState.currentAreaType === 'administration') {
+                    // Always visible for click detection, control opacity with toggle
+                    appState.map.setLayoutProperty(layerId, 'visibility', 'visible');
+                    const opacity = appState.adminBoundaryVisible ? 0.8 : 0.01; // Nearly invisible but still clickable
+                    appState.map.setPaintProperty(layerId, 'line-opacity', opacity);
+                    console.log(`✅ Updated ${layerId} opacity to: ${opacity} (admin: ${appState.adminBoundaryVisible}, always visible for click detection)`);
+                } else {
+                    // Not in administration mode, hide completely
+                    appState.map.setLayoutProperty(layerId, 'visibility', 'none');
+                    console.log(`✅ Updated ${layerId} visibility to: none (not in administration mode)`);
+                }
             }
-            
-            const finalVisibility = shouldBeVisible ? 'visible' : 'none';
-            appState.map.setLayoutProperty(layerId, 'visibility', finalVisibility);
-            console.log(`✅ Updated ${layerId} visibility to: ${finalVisibility} (country: ${appState.countryBoundaryVisible}, admin: ${appState.adminBoundaryVisible})`);
         }
     });
     
@@ -2561,14 +2770,14 @@ function setupBoundaryLineVisibilityToggle() {
     adminToggle.checked = !appState.adminBoundaryVisible;
     
     // Country boundary toggle
-    countryToggle.addEventListener('change', function() {
+    countryToggle.addEventListener('change', function () {
         appState.countryBoundaryVisible = !this.checked; // Inverted: checked = hide (false), unchecked = show (true)
         updateBoundaryLineVisibility();
         console.log(`✅ Country boundary visibility: ${appState.countryBoundaryVisible ? 'visible' : 'hidden'} (toggle checked: ${this.checked})`);
     });
     
     // Admin boundary toggle
-    adminToggle.addEventListener('change', function() {
+    adminToggle.addEventListener('change', function () {
         appState.adminBoundaryVisible = !this.checked; // Inverted: checked = hide (false), unchecked = show (true)
         updateBoundaryLineVisibility();
         console.log(`✅ Admin boundary visibility: ${appState.adminBoundaryVisible ? 'visible' : 'hidden'} (toggle checked: ${this.checked})`);
@@ -2684,7 +2893,7 @@ function setupAreaTypeButtons() {
     console.log(`   Found ${buttons.length} buttons:`, Array.from(buttons).map(b => b.dataset.type));
     
     // Use event delegation on the button group
-    buttonGroup.addEventListener('click', function(e) {
+    buttonGroup.addEventListener('click', function (e) {
         // Find the clicked button
         const button = e.target.closest('.btn-toggle[data-type]');
         
@@ -2849,9 +3058,29 @@ function showBoundaryLayer(areaType) {
     
     // Show line layer (single layer for both display and click detection)
     if (appState.map.getLayer(layerId)) {
-        // Use updateBoundaryLineVisibility() to ensure consistency with toggle state
-        // This ensures both our layers and base map layers are updated correctly
-        updateBoundaryLineVisibility();
+        // CRITICAL FIX: For click detection, layers must always be visible when active
+        // The boundary line visibility toggle should only control visual appearance (opacity), not clickability
+        // When in administration mode, state/city layers must be visible for click detection
+        if (areaType === 'state' || areaType === 'city') {
+            // For administrative areas, always make visible when active (regardless of toggle)
+            // This ensures they can be clicked for selection
+            if (appState.currentAreaType === 'administration') {
+                appState.map.setLayoutProperty(layerId, 'visibility', 'visible');
+                // Set low opacity if boundary line toggle is off (visual only, still clickable)
+                if (!appState.adminBoundaryVisible) {
+                    appState.map.setPaintProperty(layerId, 'line-opacity', 0.01); // Nearly invisible but still clickable
+                } else {
+                    appState.map.setPaintProperty(layerId, 'line-opacity', 0.8); // Normal visibility
+                }
+                console.log(`✅ Made ${layerId} visible for click detection (administration mode)`);
+            } else {
+                // Not in administration mode, use toggle state
+                updateBoundaryLineVisibility();
+            }
+        } else {
+            // For country layer, use toggle state
+            updateBoundaryLineVisibility();
+        }
         return true;
     } else {
         // Layer doesn't exist yet - this is normal during data loading
@@ -2983,7 +3212,7 @@ function setupOceanColorPicker() {
     if (!oceanColorPicker) return;
     
     // Ocean color picker change
-    oceanColorPicker.addEventListener('change', function() {
+    oceanColorPicker.addEventListener('change', function () {
         const color = this.value;
         if (oceanHexInput) {
             oceanHexInput.value = color.toUpperCase();
@@ -2991,7 +3220,7 @@ function setupOceanColorPicker() {
         setWaterColor(color);
     });
     
-    oceanColorPicker.addEventListener('input', function() {
+    oceanColorPicker.addEventListener('input', function () {
         const color = this.value;
         if (oceanHexInput) {
             oceanHexInput.value = color.toUpperCase();
@@ -3001,7 +3230,7 @@ function setupOceanColorPicker() {
     
     // Hex input change
     if (oceanHexInput) {
-        oceanHexInput.addEventListener('input', function() {
+        oceanHexInput.addEventListener('input', function () {
             let value = this.value.trim();
             
             // Add # if missing
@@ -3019,7 +3248,7 @@ function setupOceanColorPicker() {
             }
         });
         
-        oceanHexInput.addEventListener('blur', function() {
+        oceanHexInput.addEventListener('blur', function () {
             // Format value on blur
             let value = this.value.trim().toUpperCase();
             if (value && !value.startsWith('#')) {
@@ -3039,7 +3268,7 @@ function setupOceanColorPicker() {
     
     // Reset button
     if (resetOceanColorBtn) {
-        resetOceanColorBtn.addEventListener('click', function() {
+        resetOceanColorBtn.addEventListener('click', function () {
             oceanColorPicker.value = '#C1D3E2';
             if (oceanHexInput) {
                 oceanHexInput.value = '#C1D3E2';
@@ -3058,7 +3287,7 @@ function setupColorPicker() {
     const presets = document.querySelectorAll('.color-preset:not(.popup-color-presets .color-preset)');
     
     // Color picker change
-    colorPicker.addEventListener('change', function() {
+    colorPicker.addEventListener('change', function () {
         const color = this.value;
         appState.currentColor = color;
         if (hexInput) {
@@ -3067,7 +3296,7 @@ function setupColorPicker() {
         updateActivePreset(color);
     });
     
-    colorPicker.addEventListener('input', function() {
+    colorPicker.addEventListener('input', function () {
         const color = this.value;
         appState.currentColor = color;
         if (hexInput) {
@@ -3078,7 +3307,7 @@ function setupColorPicker() {
     
     // Hex input change
     if (hexInput) {
-        hexInput.addEventListener('input', function() {
+        hexInput.addEventListener('input', function () {
             let value = this.value.trim();
             
             // Add # if missing
@@ -3097,7 +3326,7 @@ function setupColorPicker() {
             }
         });
         
-        hexInput.addEventListener('blur', function() {
+        hexInput.addEventListener('blur', function () {
             // Format value on blur
             let value = this.value.trim().toUpperCase();
             if (value && !value.startsWith('#')) {
@@ -3135,7 +3364,7 @@ function updateActivePreset(color) {
  */
 function setupColorPresets(presets, colorPicker) {
     presets.forEach(preset => {
-        preset.addEventListener('click', function() {
+        preset.addEventListener('click', function () {
             const color = this.dataset.color;
             colorPicker.value = color;
             appState.currentColor = color;
@@ -3169,7 +3398,7 @@ function setupSearch() {
     
     // Use debounce utility if available
     if (typeof debounce !== 'undefined') {
-        const debouncedPerformSearch = debounce(function() {
+        const debouncedPerformSearch = debounce(function () {
             const query = searchInput.value.trim();
             if (query.length >= 2) {
                 performSearch(query);
@@ -3182,7 +3411,7 @@ function setupSearch() {
     } else {
         // Fallback to original implementation
         let searchTimeout = null;
-        searchInput.addEventListener('input', function() {
+        searchInput.addEventListener('input', function () {
             clearTimeout(searchTimeout);
             const query = this.value.trim();
             if (query.length >= 2) {
@@ -3552,7 +3781,7 @@ window.selectAreaFromSearch = selectAreaFromSearch;
  */
 function setupExport() {
     const exportBtn = document.getElementById('export-btn');
-    exportBtn.addEventListener('click', function() {
+    exportBtn.addEventListener('click', function () {
         showExportDialog();
     });
     
@@ -3604,7 +3833,7 @@ function setupExportDialog() {
     
     closeBtn.addEventListener('click', closeDialog);
     cancelBtn.addEventListener('click', closeDialog);
-    overlay.addEventListener('click', function(e) {
+    overlay.addEventListener('click', function (e) {
         if (e.target === overlay) {
             closeDialog();
         }
@@ -3697,7 +3926,7 @@ function setupExportDialog() {
                 
                 // Draw map image onto preview canvas (scaled)
                 const mapImg = new Image();
-                mapImg.onload = function() {
+                mapImg.onload = function () {
                     // Draw map
                     previewCtx.drawImage(mapImg, 0, 0, previewWidth, previewHeight);
                     
@@ -3818,7 +4047,7 @@ function setupExportDialog() {
                     console.log('✅ Export preview generated with scale bar and compass');
                 };
                 
-                mapImg.onerror = function() {
+                mapImg.onerror = function () {
                     console.error('Preview image failed to load');
                     previewContainer.innerHTML = '<div class="export-preview-error">Preview image failed to load</div>';
                 };
@@ -3833,36 +4062,36 @@ function setupExportDialog() {
     
     // Show/hide quality slider for JPEG
     formatRadios.forEach(radio => {
-        radio.addEventListener('change', function() {
+        radio.addEventListener('change', function () {
             qualityGroup.style.display = this.value === 'jpeg' ? 'block' : 'none';
             updateExportPreview();
         });
     });
     
     // Update quality value display
-    qualitySlider.addEventListener('input', function() {
+    qualitySlider.addEventListener('input', function () {
         qualityValue.textContent = this.value + '%';
     });
     
     // Update dimensions when options change
-    paperSizeSelect.addEventListener('change', function() {
+    paperSizeSelect.addEventListener('change', function () {
         updateDimensionsPreview();
         setTimeout(() => updateExportPreview(), 100);
     });
     orientationRadios.forEach(radio => {
-        radio.addEventListener('change', function() {
+        radio.addEventListener('change', function () {
             updateDimensionsPreview();
             setTimeout(() => updateExportPreview(), 100);
         });
     });
-    dpiSelect.addEventListener('change', function() {
+    dpiSelect.addEventListener('change', function () {
         updateDimensionsPreview();
         // DPI change doesn't affect preview image, but update anyway
         setTimeout(() => updateExportPreview(), 100);
     });
     
     // Export button handler
-    exportBtn.addEventListener('click', function() {
+    exportBtn.addEventListener('click', function () {
         const settings = {
             paperSize: paperSizeSelect.value,
             orientation: document.querySelector('input[name="export-orientation"]:checked').value,
@@ -4079,12 +4308,12 @@ function showExportDialog() {
                                     img.style.margin = '0 auto';
                                     img.style.objectFit = 'contain'; // This ensures the image scales to fit while maintaining aspect ratio
                                     
-                                    img.onerror = function() {
+                                    img.onerror = function () {
                                         console.error('Preview image failed to load');
                                         previewContainer.innerHTML = '<div class="export-preview-error">Failed to load preview image</div>';
                                     };
                                     
-                                    img.onload = function() {
+                                    img.onload = function () {
                                         console.log('✅ Preview image loaded successfully');
                                         console.log('   Preview canvas:', previewCanvas.width, 'x', previewCanvas.height, '(low-res)');
                                         console.log('   Display size:', img.offsetWidth, 'x', img.offsetHeight);
@@ -4230,7 +4459,7 @@ function exportMapImage(settings = {}) {
                 }
                 
                 // Wait for map to render before capturing
-                appState.map.once('render', function() {
+                appState.map.once('render', function () {
                     // Get actual canvas dimensions
                     const canvasWidth = mapCanvas.clientWidth || mapCanvas.width;
                     const canvasHeight = mapCanvas.clientHeight || mapCanvas.height;
@@ -4258,7 +4487,7 @@ function exportMapImage(settings = {}) {
                     const mimeType = settings.format === 'jpeg' ? 'image/jpeg' : 'image/png';
                     const quality = settings.format === 'jpeg' ? settings.quality / 100 : undefined;
                     
-                    exportCanvas.toBlob(function(blob) {
+                    exportCanvas.toBlob(function (blob) {
                         if (!blob || blob.size === 0) {
                             hideLoading();
                             showToast('Failed to export map image - empty blob', 'error');
@@ -4319,7 +4548,7 @@ function exportMapImage(settings = {}) {
             const maxRenderWaits = 3; // Wait for multiple renders to ensure everything is loaded
             
             const waitForFullRender = () => {
-                appState.map.once('render', function() {
+                appState.map.once('render', function () {
                     renderCount++;
                     if (renderCount < maxRenderWaits) {
                         // Wait for more renders to ensure all tiles are loaded
@@ -4377,7 +4606,7 @@ function exportMapImage(settings = {}) {
                                 const mimeType = settings.format === 'jpeg' ? 'image/jpeg' : 'image/png';
                                 const quality = settings.format === 'jpeg' ? settings.quality / 100 : undefined;
                                 
-                                exportCanvas.toBlob(function(blob) {
+                                exportCanvas.toBlob(function (blob) {
                                     if (!blob) {
                                         hideLoading();
                                         showToast('Failed to export map image', 'error');
@@ -4435,7 +4664,7 @@ function exportMapImage(settings = {}) {
             captureMap();
         }, 200);
     } else {
-        appState.map.once('idle', function() {
+        appState.map.once('idle', function () {
             setTimeout(() => {
                 captureMap();
             }, 200);
@@ -4451,7 +4680,7 @@ function setupAdvancedToggle() {
     const toggle = document.getElementById('advanced-toggle');
     const content = document.getElementById('advanced-content');
     
-    toggle.addEventListener('click', function() {
+    toggle.addEventListener('click', function () {
         const isExpanded = content.style.display !== 'none';
         content.style.display = isExpanded ? 'none' : 'block';
         toggle.classList.toggle('expanded', !isExpanded);
@@ -4465,7 +4694,7 @@ function setupPanelToggle() {
     const toggle = document.getElementById('toggle-panel');
     const panel = document.getElementById('side-panel');
     
-    toggle.addEventListener('click', function() {
+    toggle.addEventListener('click', function () {
         panel.classList.toggle('collapsed');
         const icon = this.querySelector('.material-icons');
         icon.textContent = panel.classList.contains('collapsed') ? 'chevron_right' : 'chevron_left';
@@ -4486,7 +4715,7 @@ function setupOverlayToggle() {
     updateOverlayToggleVisibility();
     
     // Bind change event
-    overlayToggle.addEventListener('change', function(e) {
+    overlayToggle.addEventListener('change', function (e) {
         appState.overlayMode = e.target.checked;
         console.log(`🔄 Overlay mode: ${appState.overlayMode ? 'ON' : 'OFF'}`);
         
@@ -4547,7 +4776,7 @@ function setupAdminLevelSelector() {
     }
     
     // Use event delegation for button clicks
-    adminLevelGroup.addEventListener('click', function(e) {
+    adminLevelGroup.addEventListener('click', function (e) {
         const btn = e.target.closest('.btn-toggle[data-level]');
         if (btn) {
             e.preventDefault();
@@ -4639,7 +4868,7 @@ function updateOverlayToggleVisibility() {
  */
 function setupClearButton() {
     const clearBtn = document.getElementById('clear-areas-btn');
-    clearBtn.addEventListener('click', function() {
+    clearBtn.addEventListener('click', function () {
         clearAllAreas();
     });
 }
@@ -4657,8 +4886,8 @@ function clearAllAreas() {
     appState.selectedAreas = [];
     updateSelectedAreasList();
     
-    // ARCHIVED: 移除自定义标签
-    // removeCustomChineseLabels();
+    // 移除自定义标签
+    removeCustomChineseLabels();
     
     showToast('All areas cleared', 'success');
 }
@@ -4706,10 +4935,10 @@ function removeArea(areaId, areaType) {
         updateSelectedAreasList();
         showToast(`${area.name} removed`, 'success');
         
-        // ARCHIVED: 更新自定义标签（移除区域后）
-        // setTimeout(() => {
-        //     updateCustomChineseLabels();
-        // }, 100);
+        // 更新自定义标签（移除区域后）
+        setTimeout(() => {
+            updateCustomChineseLabels();
+        }, 100);
     }
 }
 
@@ -4723,7 +4952,7 @@ function setupEventListeners() {
     // Map style selector
     const styleSelect = document.getElementById('map-style-select');
     if (styleSelect) {
-        styleSelect.addEventListener('change', function() {
+        styleSelect.addEventListener('change', function () {
             switchMapStyle(this.value);
         });
     }
@@ -4731,7 +4960,7 @@ function setupEventListeners() {
     // Labels toggle
     const labelsToggle = document.getElementById('toggle-labels');
     if (labelsToggle) {
-        labelsToggle.addEventListener('change', function() {
+        labelsToggle.addEventListener('change', function () {
             toggleLabels(this.checked);
         });
     }
@@ -4739,7 +4968,7 @@ function setupEventListeners() {
     // Boundary mode
     const modeButtons = document.querySelectorAll('.btn-toggle[data-mode]');
     modeButtons.forEach(btn => {
-        btn.addEventListener('click', function() {
+        btn.addEventListener('click', function () {
             const mode = this.dataset.mode;
             switchBoundaryMode(mode);
         });
@@ -4922,7 +5151,7 @@ function switchMapStyle(styleName) {
     
     appState.map.setStyle(styleUrl);
     
-    appState.map.once('style.load', function() {
+    appState.map.once('style.load', function () {
         clearTimeout(loadingTimeout); // Clear timeout since style loaded successfully
         
         try {
@@ -5019,7 +5248,7 @@ function switchMapStyle(styleName) {
     });
     
     // Also handle style errors
-    appState.map.once('error', function(e) {
+    appState.map.once('error', function (e) {
         clearTimeout(loadingTimeout);
         console.error('Map style error:', e);
         hideLoading();
@@ -5219,10 +5448,10 @@ async function reapplySelectedAreas() {
     
     console.log('✅ Finished reapplying selected areas');
     
-    // ARCHIVED: 重新应用自定义标签
-    // setTimeout(() => {
-    //     updateCustomChineseLabels();
-    // }, 1000);
+    // 重新应用自定义标签
+    setTimeout(() => {
+        updateCustomChineseLabels();
+    }, 1000);
 }
 
 /**
@@ -5610,30 +5839,80 @@ function getAdjacentSeas(selectedAreas) {
  */
 function getSeaLabelOffset(isoCode, seaName, index, totalSeas) {
     // 根据海域名称和国家位置，计算合适的标签位置
-    // 简化处理：使用固定偏移模式
+    // 改进版：使用更精确的偏移量，基于实际地理位置
     
     const offsets = {
         // 亚洲
-        'CHN': { '東海': [0.8, 0.3], '南海': [0.5, -0.8], '黃海': [0.6, 0.6], '渤海': [0.4, 0.5] },
-        'JPN': { '太平洋': [1.2, 0], '日本海': [-0.5, 0], '東海': [-0.8, -0.3] },
-        'KOR': { '日本海': [0.5, 0.2], '黃海': [-0.3, -0.2], '東海': [-0.5, -0.3] },
-        'TWN': { '東海': [0.3, 0.5], '南海': [0, -0.5], '太平洋': [0.8, 0] },
+        'CHN': {
+            '東海': [1.2, 0.2],      // 中国东部，东海在东南方向
+            '南海': [0.8, -1.2],     // 中国南部，南海在正南方向
+            '黃海': [0.9, 0.7],       // 中国东北，黄海在东北方向
+            '渤海': [0.3, 0.4]        // 中国北部，渤海在正北方向
+        },
+        'JPN': {
+            '太平洋': [2.0, 0],       // 日本东部，太平洋在正东方向
+            '日本海': [-0.8, 0],      // 日本西部，日本海在正西方向
+            '東海': [-1.0, -0.4]      // 日本西南，东海在西南方向
+        },
+        'KOR': {
+            '日本海': [0.8, 0.3],     // 韩国东部，日本海在东北方向
+            '黃海': [-0.5, -0.3],     // 韩国西部，黄海在西北方向
+            '東海': [-0.7, -0.5]      // 韩国西南，东海在西南方向
+        },
+        'TWN': {
+            '東海': [0.5, 0.6],       // 台湾北部，东海在东北方向
+            '南海': [0.2, -0.8],      // 台湾南部，南海在正南方向
+            '太平洋': [1.5, 0]        // 台湾东部，太平洋在正东方向
+        },
         // 欧洲
-        'GBR': { '北海': [0.2, -0.3], '大西洋': [-0.8, 0], '愛爾蘭海': [-0.3, 0.2] },
-        'FRA': { '大西洋': [-0.8, 0], '地中海': [0.3, -0.5] },
-        'ESP': { '大西洋': [-0.8, 0], '地中海': [0.5, -0.3] },
-        'ITA': { '地中海': [0, -0.5], '亞得里亞海': [0.5, 0] },
+        'GBR': {
+            '北海': [0.3, -0.5],      // 英国东部，北海在东北方向
+            '大西洋': [-1.2, 0],      // 英国西部，大西洋在正西方向
+            '愛爾蘭海': [-0.5, 0.3],  // 英国西部，爱尔兰海在西北方向
+            '英吉利海峽': [0.2, -0.8] // 英国南部，英吉利海峡在正南方向
+        },
+        'FRA': {
+            '大西洋': [-1.0, 0],      // 法国西部，大西洋在正西方向
+            '地中海': [0.5, -0.8],    // 法国南部，地中海在正南方向
+            '英吉利海峽': [-0.3, -0.5] // 法国北部，英吉利海峡在西北方向
+        },
+        'ESP': {
+            '大西洋': [-1.2, 0],      // 西班牙西部，大西洋在正西方向
+            '地中海': [0.8, -0.5],    // 西班牙东部，地中海在东南方向
+            '比斯開灣': [-0.5, -0.3]  // 西班牙北部，比斯开湾在西北方向
+        },
+        'ITA': {
+            '地中海': [0, -1.0],       // 意大利南部，地中海在正南方向
+            '亞得里亞海': [0.8, 0],    // 意大利东部，亚得里亚海在正东方向
+            '第勒尼安海': [-0.5, -0.3], // 意大利西部，第勒尼安海在西南方向
+            '愛奧尼亞海': [0.5, -0.8]  // 意大利东南，爱奥尼亚海在东南方向
+        },
+        'TUR': {
+            '黑海': [0.5, 0.5],        // 土耳其北部，黑海在东北方向
+            '地中海': [0, -1.0],        // 土耳其南部，地中海在正南方向
+            '愛琴海': [-0.5, -0.5],    // 土耳其西部，爱琴海在西南方向
+            '馬爾馬拉海': [0.2, 0.2]   // 土耳其西北，马尔马拉海在西北方向
+        },
+        'RUS': {
+            '太平洋': [3.0, 0],        // 俄罗斯东部，太平洋在正东方向
+            '北冰洋': [0, 2.0],        // 俄罗斯北部，北冰洋在正北方向
+            '波羅的海': [-0.8, -0.3],  // 俄罗斯西部，波罗的海在西北方向
+            '黑海': [-0.5, -0.8],      // 俄罗斯西南，黑海在西南方向
+            '日本海': [2.5, -0.5],     // 俄罗斯东南，日本海在东南方向
+            '白令海': [3.5, 0.5],      // 俄罗斯东北，白令海在东北方向
+            '鄂霍次克海': [2.8, 0.2]   // 俄罗斯东部，鄂霍次克海在正东方向
+        },
         // 其他常见模式
-        'default': { 'default': [0.5, 0] }
+        'default': { 'default': [0.8, 0] } // 默认：向东偏移
     };
     
     const countryOffsets = offsets[isoCode] || offsets['default'];
-    const seaOffset = countryOffsets[seaName] || countryOffsets['default'] || [0.5, 0];
+    const seaOffset = countryOffsets[seaName] || countryOffsets['default'] || [0.8, 0];
     
-    // 如果有多个海域，稍微分散标签位置
+    // 如果有多个海域，稍微分散标签位置（避免重叠）
     if (totalSeas > 1) {
         const angle = (index / totalSeas) * Math.PI * 2;
-        const radius = 0.3;
+        const radius = 0.4; // 增加分散半径，使标签更分散
         return [
             seaOffset[0] + Math.cos(angle) * radius,
             seaOffset[1] + Math.sin(angle) * radius
@@ -5644,21 +5923,231 @@ function getSeaLabelOffset(isoCode, seaName, index, totalSeas) {
 }
 
 /**
- * ARCHIVED: 更新自定义繁中标签
- * 已归档，改用预览图中的文字工具
+ * 检查标签位置是否与其他标签重叠（基于像素距离）
+ * @param {Array<number>} newLabelPos - 新标签位置 [lng, lat]
+ * @param {Array} existingLabels - 已存在的标签数组
+ * @param {number} minDistance - 最小距离（像素），默认50px
+ * @returns {boolean} - true表示重叠
  */
-function updateCustomChineseLabels_ARCHIVED() {
+function checkLabelOverlap(newLabelPos, existingLabels, minDistance = 50) {
+    if (!appState.map || !existingLabels || existingLabels.length === 0) {
+        return false;
+    }
+    
+    try {
+        const newPoint = appState.map.project(newLabelPos);
+        if (!newPoint) return false;
+        
+        for (const existing of existingLabels) {
+            if (!existing.geometry || !existing.geometry.coordinates || existing.geometry.coordinates.length < 2) {
+                continue;
+            }
+            
+            const existingPoint = appState.map.project(existing.geometry.coordinates);
+            if (!existingPoint) continue;
+            
+            const distance = Math.sqrt(
+                Math.pow(newPoint.x - existingPoint.x, 2) +
+                Math.pow(newPoint.y - existingPoint.y, 2)
+            );
+            
+            if (distance < minDistance) {
+                return true; // 重叠
+            }
+        }
+    } catch (error) {
+        console.warn('⚠️ 检查标签重叠时出错:', error);
+        return false;
+    }
+    
+    return false;
+}
+
+/**
+ * 检查标签位置是否在对应区域的边界内
+ * @param {string} areaId - 区域ID
+ * @param {Array<number>} coordinates - 坐标 [lng, lat]
+ * @param {string} labelType - 标签类型 'main' | 'adjacent' | 'sea'
+ * @returns {boolean} - true表示在边界内
+ */
+function isLabelPositionWithinArea(areaId, coordinates, labelType) {
+    if (!appState.map || !coordinates || coordinates.length < 2) {
+        return false;
+    }
+    
+    // 海域标签暂时允许（边界复杂，难以精确检查）
+    if (labelType === 'sea') {
+        return true;
+    }
+    
+    if (labelType === 'main') {
+        // 主要区域：检查是否在 selectedAreas 中对应区域的边界内
+        const area = appState.selectedAreas.find(a => a.id === areaId);
+        if (!area) return false;
+        
+        const gadmSource = appState.map.getSource(`gadm-${area.type}`);
+        if (!gadmSource || !gadmSource._data || !gadmSource._data.features) {
+            return false;
+        }
+        
+        // 查找对应的 feature
+        const feature = gadmSource._data.features.find(f => {
+            if (!f || !f.properties) return false;
+            if (area.type === 'country') {
+                return f.properties.GID_0 === areaId;
+            } else if (area.type === 'state') {
+                return f.properties.GID_1 === areaId;
+            }
+            return false;
+        });
+        
+        if (feature && feature.geometry) {
+            return isPointInPolygonGADM(coordinates, feature.geometry);
+        }
+    } else if (labelType === 'adjacent') {
+        // 邻近国家：检查是否在该国家的 GADM 边界内
+        const gadmSource = appState.map.getSource('gadm-country');
+        if (!gadmSource || !gadmSource._data || !gadmSource._data.features) {
+            return false;
+        }
+        
+        const feature = gadmSource._data.features.find(f => {
+            if (!f || !f.properties) return false;
+            return f.properties.GID_0 === areaId;
+        });
+        
+        if (feature && feature.geometry) {
+            return isPointInPolygonGADM(coordinates, feature.geometry);
+        }
+    }
+    
+    return false;
+}
+
+/**
+ * 检查新位置是否跨越到其他区域的边界内
+ * @param {string} areaId - 标签对应的区域ID
+ * @param {Array<number>} coordinates - 坐标 [lng, lat]
+ * @param {string} labelType - 标签类型 'main' | 'adjacent' | 'sea'
+ * @param {Array} allLabels - 所有标签的数组
+ * @returns {boolean} - true表示跨越到其他区域
+ */
+function isPositionCrossingOtherBoundaries(areaId, coordinates, labelType, allLabels) {
+    if (!appState.map || !coordinates || !allLabels) {
+        return false;
+    }
+    
+    // 对于海域标签，暂时允许（边界复杂）
+    if (labelType === 'sea') {
+        return false;
+    }
+    
+    // 检查是否在其他标签对应区域的边界内
+    for (const label of allLabels) {
+        if (!label.properties || label.properties.areaId === areaId) {
+            continue; // 跳过自己
+        }
+        
+        const otherAreaId = label.properties.areaId;
+        const otherLabelType = label.properties.labelType;
+        
+        // 检查新位置是否在这个其他区域的边界内
+        if (isLabelPositionWithinArea(otherAreaId, coordinates, otherLabelType)) {
+            return true; // 跨越到其他区域
+        }
+    }
+    
+    return false;
+}
+
+/**
+ * 使用螺旋搜索算法寻找不重叠且不跨边界的位置
+ * @param {Array<number>} center - 区域中心点 [lng, lat]
+ * @param {Array} existingLabels - 已存在的标签数组
+ * @param {string} areaId - 区域ID
+ * @param {string} labelType - 标签类型 'main' | 'adjacent' | 'sea'
+ * @param {number} maxAttempts - 最大尝试次数，默认20
+ * @returns {Array<number>} - 合法位置 [lng, lat]，如果未找到则返回原始中心
+ */
+function findNonOverlappingPosition(center, existingLabels, areaId, labelType, maxAttempts = 20) {
+    if (!center || center.length < 2) {
+        return center;
+    }
+    
+    const spiralRadius = 0.1; // 初始搜索半径（度）
+    const angleStep = Math.PI / 6; // 角度步长（30度）
+    const radiusStep = 0.05; // 半径增长步长
+    
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        const angle = (attempt * angleStep) % (Math.PI * 2);
+        const radius = spiralRadius + (attempt * radiusStep);
+        
+        const candidatePos = [
+            center[0] + radius * Math.cos(angle),
+            center[1] + radius * Math.sin(angle)
+        ];
+        
+        // 检查重叠
+        if (checkLabelOverlap(candidatePos, existingLabels)) {
+            continue;
+        }
+        
+        // 检查边界
+        if (!isLabelPositionWithinArea(areaId, candidatePos, labelType)) {
+            continue;
+        }
+        
+        // 检查跨边界
+        if (isPositionCrossingOtherBoundaries(areaId, candidatePos, labelType, existingLabels)) {
+            continue;
+        }
+        
+        return candidatePos; // 找到合法位置
+    }
+    
+    return center; // 未找到，返回原始中心
+}
+
+/**
+ * 更新自定义繁中标签
+ * 为已填充的区域添加中文标签
+ */
+function updateCustomChineseLabels() {
+    console.log('🔍 [updateCustomChineseLabels] 函数被调用');
+    console.log('   - appState.map:', !!appState.map);
+    console.log('   - appState.selectedAreas:', appState.selectedAreas ? appState.selectedAreas.length : 'null/undefined');
+    
     if (!appState.map || !appState.selectedAreas || appState.selectedAreas.length === 0) {
+        console.log('⚠️ [updateCustomChineseLabels] 没有选中的区域，移除标签层');
         // 如果没有选中的区域，移除标签层
         removeCustomChineseLabels();
         return;
     }
     
-    // 移除旧的标签层（如果存在）
-    removeCustomChineseLabels();
+    console.log(`📋 [updateCustomChineseLabels] 找到 ${appState.selectedAreas.length} 个选中区域`);
+    
+    // 不移除标签层，而是更新数据源（保留样式和拖拽功能）
+    // removeCustomChineseLabels(); // 注释掉，改为更新现有数据源
     
     // 创建标签数据（只包含有填充颜色的区域）
     const areasWithColors = appState.selectedAreas.filter(area => area.color && area.layerId);
+    console.log(`🎨 [updateCustomChineseLabels] 有颜色的区域: ${areasWithColors.length} 个`);
+    
+    if (areasWithColors.length === 0) {
+        console.warn('⚠️ [updateCustomChineseLabels] 没有找到有颜色的区域（需要 color 和 layerId）');
+        // 显示每个区域的属性以便调试
+        appState.selectedAreas.forEach((area, index) => {
+            console.log(`   区域 ${index + 1}:`, {
+                name: area.name,
+                id: area.id,
+                type: area.type,
+                hasColor: !!area.color,
+                color: area.color,
+                hasLayerId: !!area.layerId,
+                layerId: area.layerId
+            });
+        });
+    }
     
     // 过滤掉相邻且颜色相同的区域
     const labelFeatures = areasWithColors
@@ -5685,11 +6174,58 @@ function updateCustomChineseLabels_ARCHIVED() {
                 return null;
             }
             
-            // 获取自定义标签位置偏移（如果有）
-            // 如果有偏移，直接应用到坐标上
-            const labelPosition = appState.labelPositions[area.id];
+            // 尝试查询 Mapbox 英文标签的位置，对齐到英文标签
             let finalCenter = center;
-            
+            let textAnchor = 'center';
+            let textOffset = [0, 0];
+
+            try {
+                // 查询 Mapbox 标签层（country-label, place-label, state-label 等）
+                const labelLayers = ['country-label', 'place-label', 'place-city-label',
+                    'place-state-label', 'place-country-label', 'place-town-label'];
+
+                // 在区域中心点附近查询英文标签
+                // 使用 queryRenderedFeatures 查询当前视图中渲染的标签
+                const centerPoint = appState.map.project(center);
+                const mapboxLabels = appState.map.queryRenderedFeatures(
+                    centerPoint,
+                    {
+                        layers: labelLayers,
+                        radius: 100 // 100像素范围内查找 Mapbox 标签
+                    }
+                );
+
+                if (mapboxLabels.length > 0) {
+                    // 找到最接近的标签
+                    const closestLabel = mapboxLabels[0];
+                    const labelCoords = closestLabel.geometry.coordinates;
+
+                    if (labelCoords && labelCoords.length >= 2) {
+                        // 使用 Mapbox 标签的位置
+                        finalCenter = [labelCoords[0], labelCoords[1]];
+                        console.log(`📍 对齐到 Mapbox 标签: ${area.name} -> [${finalCenter[0].toFixed(4)}, ${finalCenter[1].toFixed(4)}]`);
+
+                        // 获取 Mapbox 标签的对齐方式（如果有）
+                        const labelLayer = appState.map.getLayer(closestLabel.layer.id);
+                        if (labelLayer && labelLayer.layout) {
+                            if (labelLayer.layout['text-anchor']) {
+                                textAnchor = labelLayer.layout['text-anchor'];
+                            }
+                            if (labelLayer.layout['text-offset']) {
+                                const offset = labelLayer.layout['text-offset'];
+                                if (Array.isArray(offset) && offset.length >= 2) {
+                                    textOffset = [offset[0], offset[1]];
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch (error) {
+                console.warn(`⚠️ 查询 Mapbox 标签失败: ${error.message}`);
+            }
+
+            // 获取自定义标签位置偏移（如果有，优先级高于 Mapbox 对齐）
+            const labelPosition = appState.labelPositions[area.id];
             if (labelPosition && Array.isArray(labelPosition.offset) && labelPosition.offset.length === 2) {
                 const offsetX = typeof labelPosition.offset[0] === 'number' ? labelPosition.offset[0] : 0;
                 const offsetY = typeof labelPosition.offset[1] === 'number' ? labelPosition.offset[1] : 0;
@@ -5697,7 +6233,7 @@ function updateCustomChineseLabels_ARCHIVED() {
                 // 将像素偏移转换为地理坐标偏移
                 if (appState.map && (offsetX !== 0 || offsetY !== 0)) {
                     try {
-                        const originalPoint = appState.map.project(center);
+                        const originalPoint = appState.map.project(finalCenter);
                         const newPoint = {
                             x: originalPoint.x + offsetX,
                             y: originalPoint.y + offsetY
@@ -5716,11 +6252,14 @@ function updateCustomChineseLabels_ARCHIVED() {
                     name: area.name, // 已经是中文名称
                     areaId: area.id,
                     areaType: area.type,
-                    _originalCenter: center // 存储原始中心点，用于拖拽时计算偏移
+                    labelType: 'main', // 主要国家标签
+                    _originalCenter: center, // 存储原始中心点，用于拖拽时计算偏移
+                    _textAnchor: textAnchor, // 存储文本对齐方式（对齐到 Mapbox 标签）
+                    _textOffset: textOffset   // 存储文本偏移（对齐到 Mapbox 标签）
                 },
                 geometry: {
                     type: 'Point',
-                    coordinates: finalCenter // 使用应用偏移后的坐标
+                    coordinates: finalCenter // 使用对齐到 Mapbox 标签或应用偏移后的坐标
                 }
             };
         })
@@ -5737,11 +6276,75 @@ function updateCustomChineseLabels_ARCHIVED() {
         );
         
         if (!existingLabel) {
-            // 获取自定义标签位置偏移（如果有）
-            // 如果有偏移，直接应用到坐标上
-            const labelPosition = appState.labelPositions[sea.id];
+            // 尝试对齐到 Mapbox 海域标签位置
             let finalCenter = sea.center;
-            
+            let textAnchor = 'center';
+            let textOffset = [0, 0];
+
+            try {
+                // 查询 Mapbox 海域/海洋标签层
+                const seaLabelLayers = ['water-name-ocean', 'water-name-sea', 'water-name-lake',
+                    'place-ocean', 'place-sea', 'waterway-label'];
+
+                // 在海域中心点附近查询 Mapbox 标签
+                const centerPoint = appState.map.project(sea.center);
+                const mapboxLabels = appState.map.queryRenderedFeatures(
+                    centerPoint,
+                    {
+                        layers: seaLabelLayers,
+                        radius: 150 // 150像素范围内查找 Mapbox 海域标签
+                    }
+                );
+
+                if (mapboxLabels.length > 0) {
+                    // 找到最接近的海域标签
+                    let closestLabel = null;
+                    let minDistance = Infinity;
+
+                    mapboxLabels.forEach(label => {
+                        const labelCoords = label.geometry.coordinates;
+                        if (labelCoords && labelCoords.length >= 2) {
+                            // 计算距离
+                            const labelPoint = appState.map.project(labelCoords);
+                            const distance = Math.sqrt(
+                                Math.pow(labelPoint.x - centerPoint.x, 2) +
+                                Math.pow(labelPoint.y - centerPoint.y, 2)
+                            );
+
+                            if (distance < minDistance) {
+                                minDistance = distance;
+                                closestLabel = label;
+                            }
+                        }
+                    });
+
+                    if (closestLabel && closestLabel.geometry.coordinates) {
+                        const labelCoords = closestLabel.geometry.coordinates;
+                        // 使用 Mapbox 标签的位置
+                        finalCenter = [labelCoords[0], labelCoords[1]];
+                        console.log(`🌊 对齐到 Mapbox 海域标签: ${sea.name} -> [${finalCenter[0].toFixed(4)}, ${finalCenter[1].toFixed(4)}]`);
+
+                        // 获取 Mapbox 标签的对齐方式（如果有）
+                        const labelLayer = appState.map.getLayer(closestLabel.layer.id);
+                        if (labelLayer && labelLayer.layout) {
+                            if (labelLayer.layout['text-anchor']) {
+                                textAnchor = labelLayer.layout['text-anchor'];
+                            }
+                            if (labelLayer.layout['text-offset']) {
+                                const offset = labelLayer.layout['text-offset'];
+                                if (Array.isArray(offset) && offset.length >= 2) {
+                                    textOffset = [offset[0], offset[1]];
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch (error) {
+                console.warn(`⚠️ 查询 Mapbox 海域标签失败: ${error.message}`);
+            }
+
+            // 获取自定义标签位置偏移（如果有，优先级高于 Mapbox 对齐）
+            const labelPosition = appState.labelPositions[sea.id];
             if (labelPosition && Array.isArray(labelPosition.offset) && labelPosition.offset.length === 2) {
                 const offsetX = typeof labelPosition.offset[0] === 'number' ? labelPosition.offset[0] : 0;
                 const offsetY = typeof labelPosition.offset[1] === 'number' ? labelPosition.offset[1] : 0;
@@ -5749,7 +6352,7 @@ function updateCustomChineseLabels_ARCHIVED() {
                 // 将像素偏移转换为地理坐标偏移
                 if (appState.map && (offsetX !== 0 || offsetY !== 0)) {
                     try {
-                        const originalPoint = appState.map.project(sea.center);
+                        const originalPoint = appState.map.project(finalCenter);
                         const newPoint = {
                             x: originalPoint.x + offsetX,
                             y: originalPoint.y + offsetY
@@ -5768,12 +6371,15 @@ function updateCustomChineseLabels_ARCHIVED() {
                     name: sea.name,
                     areaId: sea.id,
                     areaType: 'sea',
+                    labelType: 'sea', // 临海标签
                     isAdjacent: true,
-                    _originalCenter: sea.center // 存储原始中心点
+                    _originalCenter: sea.center, // 存储原始中心点
+                    _textAnchor: textAnchor, // 存储文本对齐方式（对齐到 Mapbox 标签）
+                    _textOffset: textOffset   // 存储文本偏移（对齐到 Mapbox 标签）
                 },
                 geometry: {
                     type: 'Point',
-                    coordinates: finalCenter // 使用应用偏移后的坐标
+                    coordinates: finalCenter // 使用对齐到 Mapbox 标签或应用偏移后的坐标
                 }
             });
         }
@@ -5834,30 +6440,227 @@ function updateCustomChineseLabels_ARCHIVED() {
                 }
             }
             
+            // 尝试对齐到 Mapbox 英文标签位置
+            let textAnchor = 'center';
+            let textOffset = [0, 0];
+            
+            try {
+                const labelLayers = ['country-label', 'place-label', 'place-country-label'];
+                const centerPoint = appState.map.project(adjCountry.center);
+                const mapboxLabels = appState.map.queryRenderedFeatures(
+                    centerPoint,
+                    {
+                        layers: labelLayers,
+                        radius: 100
+                    }
+                );
+
+                if (mapboxLabels.length > 0) {
+                    const closestLabel = mapboxLabels[0];
+                    const labelCoords = closestLabel.geometry.coordinates;
+                    if (labelCoords && labelCoords.length >= 2) {
+                        finalCenter = [labelCoords[0], labelCoords[1]];
+                        const labelLayer = appState.map.getLayer(closestLabel.layer.id);
+                        if (labelLayer && labelLayer.layout) {
+                            if (labelLayer.layout['text-anchor']) {
+                                textAnchor = labelLayer.layout['text-anchor'];
+                            }
+                            if (labelLayer.layout['text-offset']) {
+                                const offset = labelLayer.layout['text-offset'];
+                                if (Array.isArray(offset) && offset.length >= 2) {
+                                    textOffset = [offset[0], offset[1]];
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch (error) {
+                console.warn(`⚠️ 查询邻近国家 Mapbox 标签失败: ${error.message}`);
+            }
+            
             labelFeatures.push({
                 type: 'Feature',
                 properties: {
                     name: adjCountry.name,
                     areaId: adjCountry.isoCode,
                     areaType: 'country',
+                    labelType: 'adjacent', // 邻近国家标签
                     isAdjacent: true, // 标记为邻近国家
-                    _originalCenter: adjCountry.center // 存储原始中心点
+                    _originalCenter: adjCountry.center, // 存储原始中心点
+                    _textAnchor: textAnchor,
+                    _textOffset: textOffset
                 },
                 geometry: {
                     type: 'Point',
-                    coordinates: finalCenter // 使用应用偏移后的坐标
+                    coordinates: finalCenter // 使用对齐到 Mapbox 标签或应用偏移后的坐标
                 }
             });
         }
     });
     
     if (labelFeatures.length === 0) {
-        console.log('📝 没有需要显示标签的区域');
+        console.log('📝 [updateCustomChineseLabels] 没有需要显示标签的区域（labelFeatures为空）');
         return;
     }
     
+    console.log(`✅ [updateCustomChineseLabels] 准备创建 ${labelFeatures.length} 个中文标签`);
+    
+    // 添加重叠检测和避免算法：调整所有标签的位置以避免重叠和跨边界
+    // 遍历所有标签，检查重叠，如果重叠则调整位置
+    for (let i = 0; i < labelFeatures.length; i++) {
+        const currentLabel = labelFeatures[i];
+        const currentPos = currentLabel.geometry.coordinates;
+        const areaId = currentLabel.properties.areaId;
+        const labelType = currentLabel.properties.labelType;
+        const originalCenter = currentLabel.properties._originalCenter || currentPos;
+        
+        // 获取已处理的标签（在当前标签之前的标签）
+        const existingLabels = labelFeatures.slice(0, i);
+        
+        // 检查是否与已处理的标签重叠
+        if (checkLabelOverlap(currentPos, existingLabels)) {
+            // 如果重叠，使用螺旋搜索算法寻找新位置
+            const newPos = findNonOverlappingPosition(
+                originalCenter,
+                existingLabels,
+                areaId,
+                labelType,
+                20
+            );
+            
+            // 如果找到了新位置，更新标签坐标
+            if (newPos && newPos !== currentPos) {
+                currentLabel.geometry.coordinates = newPos;
+                console.log(`📍 调整标签位置避免重叠: ${currentLabel.properties.name} -> [${newPos[0].toFixed(4)}, ${newPos[1].toFixed(4)}]`);
+            }
+        }
+        
+        // 检查是否跨越到其他区域边界（即使不重叠也要检查）
+        // 只检查已处理的标签（existingLabels）
+        if (isPositionCrossingOtherBoundaries(areaId, currentPos, labelType, existingLabels)) {
+            // 如果跨边界，使用螺旋搜索算法寻找新位置
+            const newPos = findNonOverlappingPosition(
+                originalCenter,
+                existingLabels,
+                areaId,
+                labelType,
+                20
+            );
+            
+            // 如果找到了新位置，更新标签坐标
+            if (newPos && newPos !== currentPos) {
+                currentLabel.geometry.coordinates = newPos;
+                console.log(`📍 调整标签位置避免跨边界: ${currentLabel.properties.name} -> [${newPos[0].toFixed(4)}, ${newPos[1].toFixed(4)}]`);
+            }
+        }
+    }
+    
     try {
-        // 添加数据源
+        const source = appState.map.getSource('custom-chinese-labels');
+        const layer = appState.map.getLayer('custom-chinese-labels');
+        const hitAreaLayer = appState.map.getLayer('custom-chinese-labels-hit-area');
+        
+        // 如果源和图层都存在，只更新数据
+        if (source && layer && hitAreaLayer) {
+            // 数据源和图层已存在，只更新数据
+            source.setData({
+                type: 'FeatureCollection',
+                features: labelFeatures
+            });
+            
+            // 确保三层格式样式正确应用（可能在更新后被覆盖）
+            appState.map.setPaintProperty('custom-chinese-labels', 'text-color', [
+                'case',
+                ['==', ['get', 'labelType'], 'adjacent'], '#888888',  // 邻近国：灰色
+                ['==', ['get', 'labelType'], 'sea'], '#003366',        // 临海：深蓝色
+                '#333333'  // 主要国家：深灰色（默认）
+            ]);
+            appState.map.setPaintProperty('custom-chinese-labels', 'text-halo-color', [
+                'case',
+                ['==', ['get', 'labelType'], 'adjacent'], 'transparent',  // 邻近国：无框
+                ['==', ['get', 'labelType'], 'sea'], 'transparent',      // 临海：无框
+                '#ffffff'  // 主要国家：白色光晕（有框）
+            ]);
+            appState.map.setPaintProperty('custom-chinese-labels', 'text-halo-width', [
+                'case',
+                ['==', ['get', 'labelType'], 'adjacent'], 0,  // 邻近国：无框
+                ['==', ['get', 'labelType'], 'sea'], 0,       // 临海：无框
+                2  // 主要国家：有框
+            ]);
+            appState.map.setPaintProperty('custom-chinese-labels', 'text-halo-blur', [
+                'case',
+                ['==', ['get', 'labelType'], 'adjacent'], 0,
+                ['==', ['get', 'labelType'], 'sea'], 0,
+                1
+            ]);
+            
+            // 确保 updateLabelHighlight 被调用以应用正确的样式（如果标签被选中，保持选中状态；否则使用三层格式）
+            // 注意：updateLabelHighlight 函数在 setupLabelDragging 中定义，需要从那里调用
+            // 但由于我们在更新数据，应该重置选择状态以确保三层格式正确显示
+            const selectState = appState.labelSelectState;
+            if (selectState && selectState.selectedLabelId) {
+                // 如果之前有选中的标签，检查它是否还在新数据中
+                const stillExists = labelFeatures.some(f => f.properties.areaId === selectState.selectedLabelId);
+                if (!stillExists) {
+                    // 如果选中的标签不在新数据中，取消选择
+                    selectState.selectedLabelId = null;
+                    selectState.selectedLabelName = null;
+                }
+            }
+            
+            // 通过重新设置样式来确保三层格式正确应用
+            // 使用 setTimeout 确保 setData 完成后再应用样式
+            setTimeout(() => {
+                if (appState.map.getLayer('custom-chinese-labels')) {
+                    // 如果没有选中的标签，确保使用三层格式
+                    if (!selectState || !selectState.selectedLabelId) {
+                        appState.map.setPaintProperty('custom-chinese-labels', 'text-color', [
+                            'case',
+                            ['==', ['get', 'labelType'], 'adjacent'], '#888888',
+                            ['==', ['get', 'labelType'], 'sea'], '#003366',
+                            '#333333'
+                        ]);
+                        appState.map.setPaintProperty('custom-chinese-labels', 'text-halo-color', [
+                            'case',
+                            ['==', ['get', 'labelType'], 'adjacent'], 'transparent',
+                            ['==', ['get', 'labelType'], 'sea'], 'transparent',
+                            '#ffffff'
+                        ]);
+                        appState.map.setPaintProperty('custom-chinese-labels', 'text-halo-width', [
+                            'case',
+                            ['==', ['get', 'labelType'], 'adjacent'], 0,
+                            ['==', ['get', 'labelType'], 'sea'], 0,
+                            2
+                        ]);
+                        appState.map.setPaintProperty('custom-chinese-labels', 'text-halo-blur', [
+                            'case',
+                            ['==', ['get', 'labelType'], 'adjacent'], 0,
+                            ['==', ['get', 'labelType'], 'sea'], 0,
+                            1
+                        ]);
+                    }
+                }
+            }, 0);
+            
+            console.log(`✅ 已更新 ${labelFeatures.length} 个中文标签（保留三层格式样式）`);
+        } else {
+            // 数据源或图层不存在，先清理再创建新的
+            try {
+                if (appState.map.getLayer('custom-chinese-labels-hit-area')) {
+                    appState.map.removeLayer('custom-chinese-labels-hit-area');
+                }
+                if (appState.map.getLayer('custom-chinese-labels')) {
+                    appState.map.removeLayer('custom-chinese-labels');
+                }
+                if (appState.map.getSource('custom-chinese-labels')) {
+                    appState.map.removeSource('custom-chinese-labels');
+                }
+            } catch (cleanupError) {
+                // 忽略清理错误
+                console.warn('清理旧标签层时出错:', cleanupError);
+            }
+            
+            // 创建新的
         appState.map.addSource('custom-chinese-labels', {
             type: 'geojson',
             data: {
@@ -5880,6 +6683,7 @@ function updateCustomChineseLabels_ARCHIVED() {
         });
         
         // 添加标签层（放在所有图层之上）
+        // 使用数据驱动的属性来对齐 Mapbox 标签，并应用三层格式样式
         appState.map.addLayer({
             id: 'custom-chinese-labels',
             type: 'symbol',
@@ -5895,15 +6699,35 @@ function updateCustomChineseLabels_ARCHIVED() {
                     10, 14  // zoom 10 时 14px
                 ],
                 'text-anchor': 'center',
-                'text-offset': [0, 0], // 默认居中，拖拽时通过更新 feature 坐标来实现
                 'text-allow-overlap': true, // 允许重叠以便手动调整
                 'text-ignore-placement': false
             },
             paint: {
-                'text-color': '#333333',
-                'text-halo-color': '#ffffff',
-                'text-halo-width': 2,
-                'text-halo-blur': 1
+                // 三层格式：主要国家（默认深色有框）/ 邻近国（灰色无框）/ 临海（深蓝无框）
+                'text-color': [
+                    'case',
+                    ['==', ['get', 'labelType'], 'adjacent'], '#888888',  // 邻近国：灰色
+                    ['==', ['get', 'labelType'], 'sea'], '#003366',        // 临海：深蓝色
+                    '#333333'  // 主要国家：深灰色（默认）
+                ],
+                'text-halo-color': [
+                    'case',
+                    ['==', ['get', 'labelType'], 'adjacent'], 'transparent',  // 邻近国：无框
+                    ['==', ['get', 'labelType'], 'sea'], 'transparent',      // 临海：无框
+                    '#ffffff'  // 主要国家：白色光晕（有框）
+                ],
+                'text-halo-width': [
+                    'case',
+                    ['==', ['get', 'labelType'], 'adjacent'], 0,  // 邻近国：无框
+                    ['==', ['get', 'labelType'], 'sea'], 0,       // 临海：无框
+                    2  // 主要国家：有框
+                ],
+                'text-halo-blur': [
+                    'case',
+                    ['==', ['get', 'labelType'], 'adjacent'], 0,
+                    ['==', ['get', 'labelType'], 'sea'], 0,
+                    1
+                ]
             }
         });
         
@@ -5911,174 +6735,355 @@ function updateCustomChineseLabels_ARCHIVED() {
         setupLabelDragging();
         
         console.log(`✅ 已为 ${labelFeatures.length} 个填充区域添加繁中标签`);
+        }
     } catch (error) {
-        console.error('❌ 创建自定义标签失败:', error);
+        console.error('❌ 创建/更新自定义标签失败:', error);
     }
 }
 
 /**
- * ARCHIVED: 设置标签拖拽功能
+ * 设置标签点击移动功能 - 简化版：点击选择，再点击放置
+ * 1. 点击标签选中它（高亮显示）
+ * 2. 点击地图任意位置将标签移动到那里
+ * 3. 再次点击标签或按 ESC 取消选择
  */
-function setupLabelDragging_ARCHIVED() {
+function setupLabelDragging() {
     if (!appState.map) return;
     
-    let isDragging = false;
-    let draggedFeatureId = null;
-    let dragStartPoint = null;
-    let dragStartOffset = null;
-    
-    // 移除旧的事件监听器（如果存在）
-    if (appState.map._labelDragHandlers) {
-        appState.map.off('mousedown', appState.map._labelDragHandlers.mousedown);
-        appState.map.off('mousemove', appState.map._labelDragHandlers.mousemove);
-        appState.map.off('mouseup', appState.map._labelDragHandlers.mouseup);
+    // 初始化选择状态
+    if (!appState.labelSelectState) {
+        appState.labelSelectState = {
+            selectedLabelId: null,
+            selectedLabelName: null
+        };
     }
-    
-    // 创建新的事件处理器
-    const handlers = {
-        mousedown: (e) => {
-            // 使用 hit-area 层来捕获点击（更可靠）
-            try {
-                const features = appState.map.queryRenderedFeatures(e.point, {
-                    layers: ['custom-chinese-labels-hit-area']
-                });
-                
-                if (features.length > 0) {
-                    const feature = features[0];
-                    const areaId = feature.properties.areaId;
-                    
-                    if (areaId) {
-                        isDragging = true;
-                        draggedFeatureId = areaId;
-                        dragStartPoint = e.point;
-                        dragStartOffset = appState.labelPositions[areaId]?.offset || [0, 0];
-                        
-                        // 改变鼠标样式
-                        appState.map.getCanvas().style.cursor = 'grabbing';
-                        
-                        // 阻止事件冒泡，避免触发地图点击事件
-                        // Mapbox 事件对象可能没有 stopPropagation，只使用 preventDefault
-                        if (e.preventDefault) e.preventDefault();
-                        if (e.stopPropagation) e.stopPropagation();
-                        
-                        console.log(`🖱️ 开始拖拽标签: ${feature.properties.name || areaId}`);
-                    }
-                }
-            } catch (error) {
-                console.warn('⚠️ 查询标签 hit-area 失败:', error);
-            }
-        },
+
+    const selectState = appState.labelSelectState;
+
+    // 移除旧的事件监听器
+    if (appState.map._labelClickHandler) {
+        appState.map.off('click', 'custom-chinese-labels-hit-area', appState.map._labelClickHandler);
+    }
+    if (appState.map._labelHoverEnterHandler) {
+        appState.map.off('mouseenter', 'custom-chinese-labels', appState.map._labelHoverEnterHandler);
+    }
+    if (appState.map._labelHoverLeaveHandler) {
+        appState.map.off('mouseleave', 'custom-chinese-labels', appState.map._labelHoverLeaveHandler);
+    }
+    if (appState.map._mapClickForLabelHandler) {
+        appState.map.off('click', appState.map._mapClickForLabelHandler);
+    }
+
+    // 更新标签高亮样式（保持三层格式）
+    function updateLabelHighlight() {
+        if (!appState.map.getLayer('custom-chinese-labels')) return;
+
+        if (selectState.selectedLabelId) {
+            // 高亮选中的标签（基于labelType的三层格式 + 选中状态）
+            appState.map.setPaintProperty('custom-chinese-labels', 'text-color', [
+                'case',
+                ['==', ['get', 'areaId'], selectState.selectedLabelId],
+                '#0066CC',  // 选中：蓝色
+                // 未选中：根据labelType应用三层格式
+                ['==', ['get', 'labelType'], 'adjacent'], '#888888',  // 邻近国：灰色
+                ['==', ['get', 'labelType'], 'sea'], '#003366',        // 临海：深蓝色
+                '#333333'  // 主要国家：深灰色（默认）
+            ]);
+            appState.map.setPaintProperty('custom-chinese-labels', 'text-halo-color', [
+                'case',
+                ['==', ['get', 'areaId'], selectState.selectedLabelId],
+                '#FFD700',  // 选中：金色光晕
+                // 未选中：根据labelType应用三层格式
+                ['==', ['get', 'labelType'], 'adjacent'], 'transparent',  // 邻近国：无框
+                ['==', ['get', 'labelType'], 'sea'], 'transparent',      // 临海：无框
+                '#ffffff'  // 主要国家：白色光晕（有框）
+            ]);
+            appState.map.setPaintProperty('custom-chinese-labels', 'text-halo-width', [
+                'case',
+                ['==', ['get', 'areaId'], selectState.selectedLabelId],
+                4,  // 选中：更大光晕
+                // 未选中：根据labelType应用三层格式
+                ['==', ['get', 'labelType'], 'adjacent'], 0,  // 邻近国：无框
+                ['==', ['get', 'labelType'], 'sea'], 0,       // 临海：无框
+                2   // 主要国家：有框
+            ]);
+            appState.map.setPaintProperty('custom-chinese-labels', 'text-halo-blur', [
+                'case',
+                ['==', ['get', 'areaId'], selectState.selectedLabelId],
+                2,  // 选中：更大模糊
+                // 未选中：根据labelType应用三层格式
+                ['==', ['get', 'labelType'], 'adjacent'], 0,
+                ['==', ['get', 'labelType'], 'sea'], 0,
+                1   // 主要国家：正常
+            ]);
+        } else {
+            // 恢复默认三层格式样式（使用与初始创建时相同的表达式）
+            appState.map.setPaintProperty('custom-chinese-labels', 'text-color', [
+                'case',
+                ['==', ['get', 'labelType'], 'adjacent'], '#888888',  // 邻近国：灰色
+                ['==', ['get', 'labelType'], 'sea'], '#003366',        // 临海：深蓝色
+                '#333333'  // 主要国家：深灰色（默认）
+            ]);
+            appState.map.setPaintProperty('custom-chinese-labels', 'text-halo-color', [
+                'case',
+                ['==', ['get', 'labelType'], 'adjacent'], 'transparent',  // 邻近国：无框
+                ['==', ['get', 'labelType'], 'sea'], 'transparent',      // 临海：无框
+                '#ffffff'  // 主要国家：白色光晕（有框）
+            ]);
+            appState.map.setPaintProperty('custom-chinese-labels', 'text-halo-width', [
+                'case',
+                ['==', ['get', 'labelType'], 'adjacent'], 0,  // 邻近国：无框
+                ['==', ['get', 'labelType'], 'sea'], 0,       // 临海：无框
+                2   // 主要国家：有框
+            ]);
+            appState.map.setPaintProperty('custom-chinese-labels', 'text-halo-blur', [
+                'case',
+                ['==', ['get', 'labelType'], 'adjacent'], 0,
+                ['==', ['get', 'labelType'], 'sea'], 0,
+                1
+            ]);
+        }
+    }
+
+    // 取消选择
+    function deselectLabel() {
+        if (selectState.selectedLabelId) {
+            console.log(`🔘 取消选择标签: ${selectState.selectedLabelName}`);
+            selectState.selectedLabelId = null;
+            selectState.selectedLabelName = null;
+            updateLabelHighlight();
+
+            // 恢复鼠标样式
+            const canvas = appState.map.getCanvas();
+            if (canvas) canvas.style.cursor = '';
+        }
+    }
+
+    // 移动标签到新位置
+    function moveLabelTo(lngLat) {
+        if (!selectState.selectedLabelId) return;
+
+        const source = appState.map.getSource('custom-chinese-labels');
+        if (!source || !source._data) return;
+
+        const feature = source._data.features.find(f => f.properties.areaId === selectState.selectedLabelId);
+        if (!feature) return;
         
-        mousemove: (e) => {
-            if (isDragging && draggedFeatureId && dragStartPoint) {
-                // 阻止事件冒泡（Mapbox 事件对象可能没有 stopPropagation）
-                if (e.preventDefault) e.preventDefault();
-                if (e.stopPropagation) e.stopPropagation();
-                
-                // 计算本次移动的像素偏移量
-                const dx = e.point.x - dragStartPoint.x;
-                const dy = e.point.y - dragStartPoint.y;
-                
-                // 获取拖拽开始时的偏移量（作为基准）
-                const startOffset = dragStartOffset || [0, 0];
-                
-                // 计算新的总偏移量 = 开始偏移 + 本次移动
+        const areaId = feature.properties.areaId;
+        const labelType = feature.properties.labelType || 'main';
+        const coordinates = [lngLat.lng, lngLat.lat];
+        
+        // 获取所有标签数据（用于跨边界检查）
+        const allLabels = source._data.features || [];
+        
+        // 边界检查 1：是否在对应区域的边界内
+        if (!isLabelPositionWithinArea(areaId, coordinates, labelType)) {
+            showToast('标签不能移动到该位置（超出区域边界）', 'error', 3000);
+            return; // 拒绝移动
+        }
+        
+        // 边界检查 2：是否跨越到其他区域
+        if (isPositionCrossingOtherBoundaries(areaId, coordinates, labelType, allLabels)) {
+            showToast('标签不能跨越到其他区域', 'error', 3000);
+            return; // 拒绝移动
+        }
+
+        // 保存原始中心点（如果还没有）
+        if (!feature.properties._originalCenter) {
+            feature.properties._originalCenter = [...feature.geometry.coordinates];
+        }
+
+        const originalCenter = feature.properties._originalCenter;
+
+        // 计算新的偏移量（像素）
+        const originalPoint = appState.map.project(originalCenter);
+        const newPoint = appState.map.project([lngLat.lng, lngLat.lat]);
                 const newOffset = [
-                    startOffset[0] + dx,
-                    startOffset[1] + dy
-                ];
-                
-                // 更新标签层数据：通过更新 feature 的坐标来实现拖拽
-                const source = appState.map.getSource('custom-chinese-labels');
-                if (!source || !source._data) {
-                    console.warn('⚠️ 标签数据源不存在');
+            newPoint.x - originalPoint.x,
+            newPoint.y - originalPoint.y
+        ];
+
+        // 更新坐标
+        feature.geometry.coordinates = [lngLat.lng, lngLat.lat];
+
+        // 更新数据源
+        source.setData(source._data);
+
+        // 保存偏移量
+        appState.labelPositions[selectState.selectedLabelId] = {
+            offset: newOffset
+        };
+
+        showToast('标签已移动到新位置', 'success');
+        console.log(`✅ 已将标签 "${selectState.selectedLabelName}" 移动到新位置`);
+
+        // 取消选择
+        deselectLabel();
+    }
+
+    // 标签点击处理器
+    const onLabelClick = (e) => {
+        e.preventDefault();
+
+        const feature = e.features && e.features[0];
+        if (!feature || !feature.properties || !feature.properties.areaId) return;
+
+        const areaId = feature.properties.areaId;
+        const labelName = feature.properties.name || areaId;
+
+        // 如果点击的是已选中的标签，取消选择
+        if (selectState.selectedLabelId === areaId) {
+            deselectLabel();
                     return;
                 }
                 
-                const feature = source._data.features.find(f => f.properties.areaId === draggedFeatureId);
-                if (!feature) {
-                    console.warn(`⚠️ 找不到标签 feature: ${draggedFeatureId}`);
-                    return;
-                }
-                
-                if (!feature.geometry || !feature.geometry.coordinates) {
-                    console.warn('⚠️ Feature 没有有效的坐标');
-                    return;
-                }
-                
-                // 获取原始中心点坐标（如果没有存储，使用当前坐标作为原始坐标）
-                if (!feature.properties._originalCenter) {
-                    feature.properties._originalCenter = [...feature.geometry.coordinates];
-                    console.log(`📍 设置原始中心点: ${feature.properties._originalCenter}`);
-                }
-                
-                const originalCenter = feature.properties._originalCenter;
-                
-                // 将像素偏移转换为地理坐标偏移
-                // 使用 map.project 和 map.unproject 进行转换
-                try {
-                    const originalPoint = appState.map.project(originalCenter);
-                    const newPoint = {
-                        x: originalPoint.x + newOffset[0],
-                        y: originalPoint.y + newOffset[1]
-                    };
-                    const newCoordinates = appState.map.unproject([newPoint.x, newPoint.y]);
-                    
-                    // 更新 feature 坐标
-                    const oldCoords = [...feature.geometry.coordinates];
-                    feature.geometry.coordinates = [newCoordinates.lng, newCoordinates.lat];
-                    
-                    // 更新数据源（这会同时更新标签和 hit-area，因为它们共享同一个 source）
+        // 选择新标签
+        selectState.selectedLabelId = areaId;
+        selectState.selectedLabelName = labelName;
+        updateLabelHighlight();
+
+        showToast('已选择标签，点击地图任意位置移动它（按 ESC 取消）', 'info', 3000);
+        console.log(`🔵 已选择标签: ${labelName} - 点击地图任意位置移动它，或再次点击取消`);
+
+        // 改变鼠标样式
+        const canvas = appState.map.getCanvas();
+        if (canvas) canvas.style.cursor = 'crosshair';
+    };
+
+    // 地图点击处理器（用于放置标签）
+    const onMapClick = (e) => {
+        if (!selectState.selectedLabelId) return;
+
+        // 检查是否点击了标签（让标签点击处理器处理）
+        const labelFeatures = appState.map.queryRenderedFeatures(e.point, {
+            layers: ['custom-chinese-labels-hit-area']
+        });
+        if (labelFeatures.length > 0) return;
+
+        // 阻止事件继续传播，避免触发填色 popup
+        if (e.originalEvent) {
+            e.originalEvent.stopImmediatePropagation();
+            e.originalEvent.preventDefault();
+        }
+        
+        // 标记正在移动标签，防止 handleMapClick 触发
+        appState._isMovingLabel = true;
+        setTimeout(() => {
+            appState._isMovingLabel = false;
+        }, 100);
+
+        // 移动标签到点击位置
+        moveLabelTo(e.lngLat);
+    };
+
+    // 悬停效果
+    const onMouseEnter = (e) => {
+        if (selectState.selectedLabelId) return; // 已选择时不改变样式
+
+        const canvas = appState.map.getCanvas();
+        if (canvas) canvas.style.cursor = 'pointer';
+
+        const feature = e.features && e.features[0];
+        if (feature && feature.properties) {
+            const areaId = feature.properties.areaId;
+            // 悬停高亮（保持三层格式，只增加光晕宽度）
+            appState.map.setPaintProperty('custom-chinese-labels', 'text-halo-width', [
+                'case',
+                ['==', ['get', 'areaId'], areaId],
+                3,  // 悬停：更大光晕
+                // 其他：根据labelType应用三层格式
+                ['==', ['get', 'labelType'], 'adjacent'], 0,  // 邻近国：无框
+                ['==', ['get', 'labelType'], 'sea'], 0,       // 临海：无框
+                2   // 主要国家：有框
+            ]);
+        }
+    };
+
+    const onMouseLeave = () => {
+        if (selectState.selectedLabelId) return; // 已选择时不改变样式
+
+        const canvas = appState.map.getCanvas();
+        if (canvas) canvas.style.cursor = '';
+
+        // 恢复默认三层格式样式
+        appState.map.setPaintProperty('custom-chinese-labels', 'text-halo-width', [
+            'case',
+            ['==', ['get', 'labelType'], 'adjacent'], 0,  // 邻近国：无框
+            ['==', ['get', 'labelType'], 'sea'], 0,       // 临海：无框
+            2   // 主要国家：有框
+        ]);
+    };
+
+    // 删除标签功能
+    function deleteLabel(labelId) {
+        const source = appState.map.getSource('custom-chinese-labels');
+        if (!source || !source._data) return false;
+
+        const index = source._data.features.findIndex(f => f.properties.areaId === labelId);
+        if (index === -1) return false;
+
+        const labelName = source._data.features[index].properties.name || labelId;
+        source._data.features.splice(index, 1);
                     source.setData(source._data);
                     
-                    // 保存新的偏移量
-                    appState.labelPositions[draggedFeatureId] = {
-                        offset: newOffset
-                    };
-                    
-                    console.log(`🖱️ 拖拽更新: ${draggedFeatureId}, 偏移: [${newOffset[0].toFixed(1)}, ${newOffset[1].toFixed(1)}], 坐标: ${oldCoords} -> ${feature.geometry.coordinates}`);
-                } catch (error) {
-                    console.warn('⚠️ 拖拽时坐标转换失败:', error);
-                }
-            }
-        },
-        
-        mouseup: (e) => {
-            if (isDragging) {
-                // 阻止事件冒泡（Mapbox 事件对象可能没有 stopPropagation）
-                if (e.preventDefault) e.preventDefault();
-                if (e.stopPropagation) e.stopPropagation();
-                
-                console.log(`🖱️ 结束拖拽标签: ${draggedFeatureId}`);
-                isDragging = false;
-                draggedFeatureId = null;
-                dragStartPoint = null;
-                dragStartOffset = null;
-                
-                // 恢复鼠标样式
-                appState.map.getCanvas().style.cursor = '';
+        // 清除保存的偏移量
+        delete appState.labelPositions[labelId];
+
+        console.log(`🗑️ 已删除标签: ${labelName}`);
+        return true;
+    }
+
+    // ESC 键取消选择，Delete 键删除选中的标签
+    const onKeyDown = (e) => {
+        if (e.key === 'Escape' && selectState.selectedLabelId) {
+            deselectLabel();
+        } else if ((e.key === 'Delete' || e.key === 'Backspace') && selectState.selectedLabelId) {
+            const labelName = selectState.selectedLabelName;
+            const labelId = selectState.selectedLabelId;
+            deselectLabel();
+            deleteLabel(labelId);
+        }
+    };
+
+    // 右键点击删除标签
+    const onRightClick = (e) => {
+        e.preventDefault();
+
+        const feature = e.features && e.features[0];
+        if (!feature || !feature.properties || !feature.properties.areaId) return;
+
+        const areaId = feature.properties.areaId;
+        const labelName = feature.properties.name || areaId;
+
+        // 确认删除
+        if (confirm(`确定要删除标签 "${labelName}" 吗？`)) {
+            deleteLabel(areaId);
+            // 如果删除的是当前选中的标签，取消选择
+            if (selectState.selectedLabelId === areaId) {
+                selectState.selectedLabelId = null;
+                selectState.selectedLabelName = null;
+                updateLabelHighlight();
             }
         }
     };
-    
-    // 保存处理器引用以便后续移除
-    appState.map._labelDragHandlers = handlers;
-    
-    // 添加事件监听器
-    appState.map.on('mousedown', handlers.mousedown);
-    appState.map.on('mousemove', handlers.mousemove);
-    appState.map.on('mouseup', handlers.mouseup);
-    
-    // 鼠标悬停在标签上时改变样式
-    appState.map.on('mouseenter', 'custom-chinese-labels', () => {
-        appState.map.getCanvas().style.cursor = 'grab';
-    });
-    
-    appState.map.on('mouseleave', 'custom-chinese-labels', () => {
-        if (!isDragging) {
-            appState.map.getCanvas().style.cursor = '';
-        }
-    });
+
+    // 注册事件
+    appState.map.on('click', 'custom-chinese-labels-hit-area', onLabelClick);
+    appState.map.on('contextmenu', 'custom-chinese-labels-hit-area', onRightClick);
+    appState.map.on('click', onMapClick);
+    appState.map.on('mouseenter', 'custom-chinese-labels', onMouseEnter);
+    appState.map.on('mouseleave', 'custom-chinese-labels', onMouseLeave);
+    document.addEventListener('keydown', onKeyDown);
+
+    // 保存引用
+    appState.map._labelClickHandler = onLabelClick;
+    appState.map._labelRightClickHandler = onRightClick;
+    appState.map._mapClickForLabelHandler = onMapClick;
+    appState.map._labelHoverEnterHandler = onMouseEnter;
+    appState.map._labelHoverLeaveHandler = onMouseLeave;
+    appState.map._labelKeyHandler = onKeyDown;
+
+    console.log('✅ 中文标签功能已设置（点击移动，右键/Delete删除）');
 }
 
 /**
@@ -6289,18 +7294,15 @@ function setupMapTextLabelDragging() {
     // Create event handlers
     const handlers = {
         mousedown: (e) => {
+            // 注意：事件已经在 DOM 处理器中被检测和阻止传播
+            // DOM 处理器已经确认这是文字标签点击，这里直接处理拖曳逻辑
             try {
                 if (!appState.map) return;
                 
-                const features = appState.map.queryRenderedFeatures(e.point, {
-                    layers: ['map-text-labels-hit-area']
-                });
-                
-                if (features.length > 0) {
-                    const feature = features[0];
-                    const labelId = feature.properties.id;
-                    
-                    if (labelId) {
+                // 不再重复查询，直接使用 DOM 处理器传递的 feature
+                if (e.feature && e.feature.properties && e.feature.properties.id) {
+                    const labelId = e.feature.properties.id;
+
                         // Stop any ongoing map interactions immediately
                         appState.map.stop();
                         
@@ -6327,11 +7329,10 @@ function setupMapTextLabelDragging() {
                         const canvas = appState.map.getCanvas();
                         if (canvas) canvas.style.cursor = 'grabbing';
                         
-                        console.log(`🖱️ 开始拖拽文字标签: ${feature.properties.text || labelId}`);
-                    }
+                    console.log(`🖱️ 开始拖拽文字标签: ${e.feature.properties.text || labelId}`);
                 }
             } catch (error) {
-                console.warn('⚠️ 查询文字标签 hit-area 失败:', error);
+                console.warn('⚠️ 处理文字标签拖曳失败:', error);
             }
         },
         
@@ -6442,32 +7443,88 @@ function setupMapTextLabelDragging() {
     }
     
     // Wrapper functions to convert DOM events to Mapbox-style events
+    // 关键：在捕获阶段立即检测并阻止事件，防止 Mapbox 处理
     const domMousedownHandler = (domEvent) => {
+        try {
+            // 检查地图是否已加载
+            if (!appState.map || !appState.map.loaded() || !appState.map.isStyleLoaded()) {
+                return; // 地图未加载，忽略事件
+            }
+
         const rect = mapCanvas.getBoundingClientRect();
-        const point = {
-            x: domEvent.clientX - rect.left,
-            y: domEvent.clientY - rect.top
-        };
-        const lngLat = appState.map.unproject(point);
-        
+            const pointX = domEvent.clientX - rect.left;
+            const pointY = domEvent.clientY - rect.top;
+
+            // 立即检测是否是文字标签点击（在阻止事件之前）
+            // Mapbox queryRenderedFeatures 接受 [x, y] 数组格式
+            let features = [];
+            try {
+                // 确保坐标是有效数字
+                if (typeof pointX === 'number' && typeof pointY === 'number' &&
+                    !isNaN(pointX) && !isNaN(pointY) &&
+                    isFinite(pointX) && isFinite(pointY)) {
+                    // 使用数组格式 [x, y]
+                    features = appState.map.queryRenderedFeatures([pointX, pointY], {
+                        layers: ['map-text-labels-hit-area']
+                    });
+                } else {
+                    return; // 无效坐标，忽略
+                }
+            } catch (error) {
+                // 如果查询失败（可能是地图未完全加载），静默失败
+                // 不输出警告，避免控制台噪音
+                return;
+            }
+
+            if (features.length > 0) {
+                const feature = features[0];
+                console.log('🔒 检测到文字标签点击，阻止事件传播');
+
+                // 立即阻止事件传播，防止 Mapbox 处理
+                domEvent.preventDefault();
+                domEvent.stopPropagation();
+                if (domEvent.stopImmediatePropagation) {
+                    domEvent.stopImmediatePropagation();
+                }
+
+                // 立即停止地图交互
+                appState.map.stop();
+                if (appState.map.dragPan) {
+                    appState.map.dragPan.disable();
+                    console.log('🔒 已禁用地图拖曳');
+                }
+
+                // 创建 point 对象用于后续处理
+                const point = { x: pointX, y: pointY };
+                const lngLat = appState.map.unproject([pointX, pointY]);
         const mapboxEvent = {
             point: point,
             lngLat: lngLat,
             originalEvent: domEvent,
+                    feature: feature, // 传递 feature 避免重复查询
             preventDefault: () => domEvent.preventDefault(),
             stopPropagation: () => domEvent.stopPropagation()
         };
         
         handlers.mousedown(mapboxEvent);
+            }
+        } catch (error) {
+            console.warn('⚠️ DOM mousedown 处理失败:', error);
+        }
     };
     
     const domMousemoveHandler = (domEvent) => {
+        try {
+            // 检查地图是否已加载
+            if (!appState.map || !appState.map.loaded() || !appState.map.isStyleLoaded()) {
+                return; // 地图未加载，忽略事件
+            }
+
         const rect = mapCanvas.getBoundingClientRect();
-        const point = {
-            x: domEvent.clientX - rect.left,
-            y: domEvent.clientY - rect.top
-        };
-        const lngLat = appState.map.unproject(point);
+            const pointX = domEvent.clientX - rect.left;
+            const pointY = domEvent.clientY - rect.top;
+            const point = { x: pointX, y: pointY };
+            const lngLat = appState.map.unproject([pointX, pointY]);
         
         const mapboxEvent = {
             point: point,
@@ -6478,15 +7535,23 @@ function setupMapTextLabelDragging() {
         };
         
         handlers.mousemove(mapboxEvent);
+        } catch (error) {
+            // 静默失败，避免控制台噪音
+        }
     };
     
     const domMouseupHandler = (domEvent) => {
+        try {
+            // 检查地图是否已加载
+            if (!appState.map || !appState.map.loaded() || !appState.map.isStyleLoaded()) {
+                return; // 地图未加载，忽略事件
+            }
+
         const rect = mapCanvas.getBoundingClientRect();
-        const point = {
-            x: domEvent.clientX - rect.left,
-            y: domEvent.clientY - rect.top
-        };
-        const lngLat = appState.map.unproject(point);
+            const pointX = domEvent.clientX - rect.left;
+            const pointY = domEvent.clientY - rect.top;
+            const point = { x: pointX, y: pointY };
+            const lngLat = appState.map.unproject([pointX, pointY]);
         
         const mapboxEvent = {
             point: point,
@@ -6497,6 +7562,9 @@ function setupMapTextLabelDragging() {
         };
         
         handlers.mouseup(mapboxEvent);
+        } catch (error) {
+            // 静默失败，避免控制台噪音
+        }
     };
     
     // Store DOM handlers for cleanup
@@ -6509,9 +7577,10 @@ function setupMapTextLabelDragging() {
     // Add DOM event listeners (these work even when map.stop() is called)
     try {
         // Use capture phase to ensure we get events before Mapbox
-        mapCanvas.addEventListener('mousedown', domMousedownHandler, true);
-        mapCanvas.addEventListener('mousemove', domMousemoveHandler, true);
-        mapCanvas.addEventListener('mouseup', domMouseupHandler, true);
+        // 使用 { passive: false } 确保 preventDefault 生效
+        mapCanvas.addEventListener('mousedown', domMousedownHandler, { capture: true, passive: false });
+        mapCanvas.addEventListener('mousemove', domMousemoveHandler, { capture: true, passive: false });
+        mapCanvas.addEventListener('mouseup', domMouseupHandler, { capture: true, passive: false });
         
         // Still use Mapbox events for mouseenter/mouseleave on layer
         appState.map.on('mouseenter', 'map-text-labels-hit-area', handlers.mouseenter);
@@ -6524,20 +7593,37 @@ function setupMapTextLabelDragging() {
 }
 
 /**
- * ARCHIVED: 移除自定义繁中标签
+ * 移除自定义繁中标签
  */
-function removeCustomChineseLabels_ARCHIVED() {
+function removeCustomChineseLabels() {
     if (!appState.map) return;
     
     try {
-        // 移除拖拽事件监听器
+        // 移除 DOM 事件监听器
+        if (appState.map._labelDragDOMHandlers) {
+            try {
+                const mapCanvas = appState.map.getCanvasContainer();
+                if (mapCanvas) {
+                    mapCanvas.removeEventListener('mousedown', appState.map._labelDragDOMHandlers.mousedown, true);
+                    mapCanvas.removeEventListener('mousemove', appState.map._labelDragDOMHandlers.mousemove, true);
+                    mapCanvas.removeEventListener('mouseup', appState.map._labelDragDOMHandlers.mouseup, true);
+                }
+            } catch (e) {
+                console.warn('⚠️ 移除 DOM 事件监听器失败:', e);
+            }
+            delete appState.map._labelDragDOMHandlers;
+        }
+
+        // 移除 Mapbox 事件监听器
         if (appState.map._labelDragHandlers) {
-            appState.map.off('mousedown', appState.map._labelDragHandlers.mousedown);
-            appState.map.off('mousemove', appState.map._labelDragHandlers.mousemove);
-            appState.map.off('mouseup', appState.map._labelDragHandlers.mouseup);
-            appState.map.off('mouseenter', 'custom-chinese-labels-hit-area');
-            appState.map.off('mouseleave', 'custom-chinese-labels-hit-area');
+            appState.map.off('mouseenter', 'custom-chinese-labels', appState.map._labelDragHandlers.mouseenter);
+            appState.map.off('mouseleave', 'custom-chinese-labels', appState.map._labelDragHandlers.mouseleave);
             delete appState.map._labelDragHandlers;
+        }
+
+        // 确保地图拖曳被重新启用（如果之前被禁用）
+        if (appState.map.dragPan) {
+            appState.map.dragPan.enable();
         }
         
         const hitAreaLayer = appState.map.getLayer('custom-chinese-labels-hit-area');
@@ -6590,7 +7676,7 @@ function hideClickInstructions() {
 /**
  * Show Toast Notification
  */
-function showToast(message, type = 'info') {
+function showToast(message, type = 'info', duration = 3000) {
     const container = document.getElementById('toast-container');
     const toast = document.createElement('div');
     toast.className = `toast ${type}`;
@@ -6608,7 +7694,7 @@ function showToast(message, type = 'info') {
     
     container.appendChild(toast);
     
-    // Auto remove after 3 seconds
+    // Auto remove after specified duration (default 3 seconds)
     setTimeout(() => {
         toast.style.animation = 'slideOut 0.3s ease';
         setTimeout(() => {
@@ -6616,7 +7702,7 @@ function showToast(message, type = 'info') {
                 toast.parentNode.removeChild(toast);
             }
         }, 300);
-    }, 3000);
+    }, duration);
 }
 
 // Add slideOut animation
@@ -6788,7 +7874,7 @@ function setupMarkerIconSelector() {
         colorBtn.title = colorKey.charAt(0).toUpperCase() + colorKey.slice(1);
         
         // Click handler
-        colorBtn.addEventListener('click', function() {
+        colorBtn.addEventListener('click', function () {
             // Remove selected from all buttons
             document.querySelectorAll('.marker-color-btn').forEach(b => {
                 b.classList.remove('selected');
@@ -6807,13 +7893,13 @@ function setupMarkerIconSelector() {
         });
         
         // Hover effects
-        colorBtn.addEventListener('mouseenter', function() {
+        colorBtn.addEventListener('mouseenter', function () {
             if (!this.classList.contains('selected')) {
                 this.style.transform = 'scale(1.1)';
             }
         });
         
-        colorBtn.addEventListener('mouseleave', function() {
+        colorBtn.addEventListener('mouseleave', function () {
             if (!this.classList.contains('selected')) {
                 this.style.transform = 'scale(1)';
             }
@@ -6884,7 +7970,7 @@ function setupMarkerShapeSelector() {
         }
         
         // Click handler
-        shapeBtn.addEventListener('click', function() {
+        shapeBtn.addEventListener('click', function () {
             // Remove selected from all buttons
             document.querySelectorAll('.marker-shape-btn').forEach(b => {
                 b.classList.remove('selected');
@@ -6906,14 +7992,14 @@ function setupMarkerShapeSelector() {
         });
         
         // Hover effects
-        shapeBtn.addEventListener('mouseenter', function() {
+        shapeBtn.addEventListener('mouseenter', function () {
             if (!this.classList.contains('selected')) {
                 this.style.backgroundColor = '#e0e0e0';
                 this.style.transform = 'scale(1.05)';
             }
         });
         
-        shapeBtn.addEventListener('mouseleave', function() {
+        shapeBtn.addEventListener('mouseleave', function () {
             if (!this.classList.contains('selected')) {
                 this.style.backgroundColor = '#f5f5f5';
                 this.style.transform = 'scale(1)';
@@ -6942,7 +8028,30 @@ function createShapePreview(shape, color, size) {
     const shapeConfig = iconShapes[shape];
     
     if (shapeConfig && typeof shapeConfig === 'object' && shapeConfig.svgPath) {
-        // Use SVG icon from file - load and replace color
+        // Check if we have a cached SVG template
+        if (!window._svgIconCache) {
+            window._svgIconCache = {};
+        }
+        
+        // Try to load from cache first
+        const cacheKey = shapeConfig.svgPath;
+        let svgTemplate = window._svgIconCache[cacheKey];
+        
+        if (svgTemplate) {
+            // Use cached template
+            let svgString = svgTemplate.replace(/fill="#e3e3e3"/gi, `fill="${color}"`);
+            svgString = svgString.replace(/#e3e3e3/gi, color);
+            const svgEl = document.createElement('div');
+            svgEl.innerHTML = svgString;
+            const svg = svgEl.querySelector('svg');
+            if (svg) {
+                svg.style.width = size + 'px';
+                svg.style.height = size + 'px';
+                svg.style.display = 'block';
+            }
+            el.appendChild(svgEl.firstChild);
+        } else {
+            // Load SVG and cache it
         const iconImg = document.createElement('img');
         iconImg.style.width = size + 'px';
         iconImg.style.height = size + 'px';
@@ -6956,31 +8065,66 @@ function createShapePreview(shape, color, size) {
         
         // Load SVG and replace fill color
         fetch(shapeConfig.svgPath)
-            .then(response => response.text())
+                .then(response => {
+                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                    return response.text();
+                })
             .then(svgText => {
-                // Replace fill color in SVG (#e3e3e3 or #E3E3E3 -> user color)
-                // Replace in fill attributes: fill="#e3e3e3" -> fill="color"
+                    // Cache the template
+                    window._svgIconCache[cacheKey] = svgText;
+                    // Replace fill color
                 let svgString = svgText.replace(/fill="#e3e3e3"/gi, `fill="${color}"`);
-                // Also replace standalone color values (for fill attribute values)
                 svgString = svgString.replace(/#e3e3e3/gi, color);
-                // Create a blob URL
-                const blob = new Blob([svgString], { type: 'image/svg+xml' });
-                const url = URL.createObjectURL(blob);
-                iconImg.src = url;
+                    // Create inline SVG instead of blob URL
+                    const svgEl = document.createElement('div');
+                    svgEl.innerHTML = svgString;
+                    const svg = svgEl.querySelector('svg');
+                    if (svg) {
+                        svg.style.width = size + 'px';
+                        svg.style.height = size + 'px';
+                        svg.style.display = 'block';
+                    }
+                    el.innerHTML = '';
+                    el.appendChild(svgEl.firstChild);
             })
             .catch(err => {
-                console.warn('Failed to load SVG icon:', err);
-                // Fallback to original path
-                iconImg.src = shapeConfig.svgPath;
+                    // Only log in development mode
+                    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+                        console.warn('Failed to load SVG icon:', shapeConfig.svgPath, err.message);
+                    }
+                    // Fallback to CSS-based icon
+                    createFallbackShapePreview(el, shape, color, size);
             });
         
         el.appendChild(iconImg);
+        }
+        
         return el;
+    }
+    
+    // Helper function for fallback
+    function createFallbackShapePreview(container, shape, color, size) {
+        container.innerHTML = '';
+        if (shape === 'pin') {
+            container.style.background = `radial-gradient(circle at 50% 50%, ${color} 0%, ${color} 60%, ${adjustBrightness(color, -20)} 100%)`;
+            container.style.borderRadius = '50% 50% 50% 0';
+            container.style.transform = 'rotate(-45deg)';
+        } else if (shape === 'circle') {
+            container.style.background = color;
+            container.style.borderRadius = '50%';
+        } else if (shape === 'square') {
+            container.style.background = color;
+            container.style.borderRadius = '6px';
+        } else {
+            container.style.background = color;
+            container.style.borderRadius = '50%';
+        }
+        container.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
     }
     
     // Legacy fallback: Helper to adjust color brightness
     const adjustBrightness = (hex, percent) => {
-        const num = parseInt(hex.replace("#",""), 16);
+        const num = parseInt(hex.replace("#", ""), 16);
         const amt = Math.round(2.55 * percent);
         const R = Math.min(255, Math.max(0, (num >> 16) + amt));
         const G = Math.min(255, Math.max(0, (num >> 8 & 0x00FF) + amt));
@@ -7050,7 +8194,7 @@ function createIconButton(iconKey, iconConfig) {
     }
     
     // Click handler
-    btn.addEventListener('click', function() {
+    btn.addEventListener('click', function () {
         // Remove selected class from all buttons
         document.querySelectorAll('.marker-icon-btn').forEach(b => {
             b.classList.remove('selected');
@@ -7068,13 +8212,13 @@ function createIconButton(iconKey, iconConfig) {
     });
     
     // Hover effects
-    btn.addEventListener('mouseenter', function() {
+    btn.addEventListener('mouseenter', function () {
         if (!this.classList.contains('selected')) {
             this.style.backgroundColor = '#e0e0e0';
         }
     });
     
-    btn.addEventListener('mouseleave', function() {
+    btn.addEventListener('mouseleave', function () {
         if (!this.classList.contains('selected')) {
             this.style.backgroundColor = '#f5f5f5';
         }
@@ -7102,7 +8246,7 @@ function setupMarkers() {
     const markerModeToggle = getElement('marker-mode-toggle');
     if (markerModeToggle) {
         markerModeToggle.checked = appState.markerMode;
-        markerModeToggle.addEventListener('change', function() {
+        markerModeToggle.addEventListener('change', function () {
             appState.markerMode = this.checked;
             if (this.checked) {
                 showToast('Marker Mode: Click map to add markers', 'info', 2000);
@@ -7116,7 +8260,7 @@ function setupMarkers() {
     const colorPickerToggle = getElement('show-color-picker-on-add');
     if (colorPickerToggle) {
         colorPickerToggle.checked = appState.showColorPickerOnAdd;
-        colorPickerToggle.addEventListener('change', function() {
+        colorPickerToggle.addEventListener('change', function () {
             appState.showColorPickerOnAdd = this.checked;
         });
     }
@@ -7130,7 +8274,7 @@ function setupMarkers() {
     let pasteTimeout;
     
     // Handle paste event
-    smartSearchInput.addEventListener('paste', function(e) {
+    smartSearchInput.addEventListener('paste', function (e) {
         clearTimeout(pasteTimeout);
         
         // Wait for paste to complete
@@ -7154,7 +8298,7 @@ function setupMarkers() {
     // Handle input event - use debounce for name searches
     if (typeof debounce !== 'undefined') {
         // Use debounce utility for name searches
-        const debouncedNameSearch = debounce(function(query) {
+        const debouncedNameSearch = debounce(function (query) {
             if (!resultsDiv) return;
             
             if (query.length >= 2) {
@@ -7166,7 +8310,7 @@ function setupMarkers() {
             }
         }, 500);
         
-        smartSearchInput.addEventListener('input', function() {
+        smartSearchInput.addEventListener('input', function () {
             const query = this.value.trim();
             clearTimeout(pasteTimeout);
             
@@ -7200,7 +8344,7 @@ function setupMarkers() {
                         // Add click handler
                         const previewItem = resultsDiv.querySelector('.search-result-item');
                         if (previewItem) {
-                            previewItem.addEventListener('click', function() {
+                            previewItem.addEventListener('click', function () {
                                 const name = `Marker (${parsed.lat.toFixed(4)}, ${parsed.lng.toFixed(4)})`;
                                 handleMarkerAddition([parsed.lng, parsed.lat], name);
                                 smartSearchInput.value = '';
@@ -7218,7 +8362,7 @@ function setupMarkers() {
     } else {
         // Fallback to original implementation
         let searchTimeout;
-        smartSearchInput.addEventListener('input', function() {
+        smartSearchInput.addEventListener('input', function () {
             const query = this.value.trim();
             clearTimeout(searchTimeout);
             clearTimeout(pasteTimeout);
@@ -7250,7 +8394,7 @@ function setupMarkers() {
                         // Add click handler
                         const previewItem = resultsDiv.querySelector('.search-result-item');
                         if (previewItem) {
-                            previewItem.addEventListener('click', function() {
+                            previewItem.addEventListener('click', function () {
                                 const name = `Marker (${parsed.lat.toFixed(4)}, ${parsed.lng.toFixed(4)})`;
                                 handleMarkerAddition([parsed.lng, parsed.lat], name);
                                 smartSearchInput.value = '';
@@ -7278,7 +8422,7 @@ function setupMarkers() {
     }
     
     // Handle Enter key
-    smartSearchInput.addEventListener('keypress', function(e) {
+    smartSearchInput.addEventListener('keypress', function (e) {
         if (e.key === 'Enter') {
             e.preventDefault();
             clearTimeout(pasteTimeout);
@@ -7306,7 +8450,7 @@ function setupMarkers() {
     // Clear all markers button
     const clearMarkersBtn = document.getElementById('clear-markers-btn');
     if (clearMarkersBtn) {
-        clearMarkersBtn.addEventListener('click', function() {
+        clearMarkersBtn.addEventListener('click', function () {
             clearAllMarkers();
         });
     }
@@ -7347,14 +8491,14 @@ function addMarker(coordinates, name, color = null, shape = 'pin') {
     
     // Add click event to marker element (before creating Mapbox marker)
     // 使用捕獲階段來提前攔截事件
-    el.addEventListener('mousedown', function(e) {
+    el.addEventListener('mousedown', function (e) {
         e.stopPropagation();
         e.preventDefault();
         e.stopImmediatePropagation();
         return false;
     }, true); // 使用捕獲階段
     
-    el.addEventListener('click', function(e) {
+    el.addEventListener('click', function (e) {
         e.stopPropagation();
         e.preventDefault();
         e.stopImmediatePropagation();
@@ -7435,7 +8579,7 @@ function createAppleMarkerFallback(color = '#007AFF', shape = 'pin', size = 24) 
     
     // Helper to darken color
     const darkenColor = (hex, percent) => {
-        const num = parseInt(hex.replace("#",""), 16);
+        const num = parseInt(hex.replace("#", ""), 16);
         const amt = Math.round(2.55 * percent);
         const R = Math.min(255, Math.max(0, (num >> 16) + amt));
         const G = Math.min(255, Math.max(0, (num >> 8 & 0x00FF) + amt));
@@ -7565,7 +8709,7 @@ function showMarkerIconPickerPopup(coordinates, point, markerId) {
         }
         
         // Click handler
-        colorBtn.addEventListener('click', function() {
+        colorBtn.addEventListener('click', function () {
             // Remove selected from all buttons
             colorSelectorContainer.querySelectorAll('.marker-color-btn').forEach(b => {
                 b.classList.remove('selected');
@@ -7588,13 +8732,13 @@ function showMarkerIconPickerPopup(coordinates, point, markerId) {
         });
         
         // Hover effects
-        colorBtn.addEventListener('mouseenter', function() {
+        colorBtn.addEventListener('mouseenter', function () {
             if (!this.classList.contains('selected')) {
                 this.style.transform = 'scale(1.15)';
             }
         });
         
-        colorBtn.addEventListener('mouseleave', function() {
+        colorBtn.addEventListener('mouseleave', function () {
             if (!this.classList.contains('selected')) {
                 this.style.transform = 'scale(1)';
             }
@@ -7648,7 +8792,7 @@ function showMarkerIconPickerPopup(coordinates, point, markerId) {
             }
             
             // Click handler
-            shapeBtn.addEventListener('click', function() {
+            shapeBtn.addEventListener('click', function () {
                 // Remove selected from all buttons
                 shapeSelectorContainer.querySelectorAll('.marker-shape-btn-popup').forEach(b => {
                     b.classList.remove('selected');
@@ -7673,14 +8817,14 @@ function showMarkerIconPickerPopup(coordinates, point, markerId) {
             });
             
             // Hover effects
-            shapeBtn.addEventListener('mouseenter', function() {
+            shapeBtn.addEventListener('mouseenter', function () {
                 if (!this.classList.contains('selected')) {
                     this.style.backgroundColor = '#e0e0e0';
                     this.style.transform = 'scale(1.05)';
                 }
             });
             
-            shapeBtn.addEventListener('mouseleave', function() {
+            shapeBtn.addEventListener('mouseleave', function () {
                 if (!this.classList.contains('selected')) {
                     this.style.backgroundColor = '#f5f5f5';
                     this.style.transform = 'scale(1)';
@@ -7697,14 +8841,14 @@ function showMarkerIconPickerPopup(coordinates, point, markerId) {
     // Close button handler
     const closeBtn = popup.querySelector('#close-marker-picker-btn');
     if (closeBtn) {
-        closeBtn.onclick = function() {
+        closeBtn.onclick = function () {
             popup.style.display = 'none';
         };
     }
     
     // Close popup when clicking outside
     setTimeout(() => {
-        const closeOnOutsideClick = function(e) {
+        const closeOnOutsideClick = function (e) {
             if (!popup.contains(e.target) && !e.target.closest('.apple-marker')) {
                 popup.style.display = 'none';
                 document.removeEventListener('click', closeOnOutsideClick);
@@ -7786,7 +8930,7 @@ function showMarkerColorPickerOnAdd(coordinates, name) {
         }
         
         // Click handler to select color
-        colorBtn.addEventListener('click', function() {
+        colorBtn.addEventListener('click', function () {
             // Remove selected from all buttons
             selectorContainer.querySelectorAll('.marker-color-btn').forEach(b => {
                 b.classList.remove('selected');
@@ -7806,13 +8950,13 @@ function showMarkerColorPickerOnAdd(coordinates, name) {
         });
         
         // Hover effects
-        colorBtn.addEventListener('mouseenter', function() {
+        colorBtn.addEventListener('mouseenter', function () {
             if (!this.classList.contains('selected')) {
                 this.style.transform = 'scale(1.15)';
             }
         });
         
-        colorBtn.addEventListener('mouseleave', function() {
+        colorBtn.addEventListener('mouseleave', function () {
             if (!this.classList.contains('selected')) {
                 this.style.transform = 'scale(1)';
             }
@@ -7868,7 +9012,7 @@ function showMarkerColorPickerOnAdd(coordinates, name) {
             }
             
             // Click handler
-            shapeBtn.addEventListener('click', function() {
+            shapeBtn.addEventListener('click', function () {
                 // Remove selected from all buttons
                 shapeSelectorContainer.querySelectorAll('.marker-shape-btn-popup').forEach(b => {
                     b.classList.remove('selected');
@@ -7890,14 +9034,14 @@ function showMarkerColorPickerOnAdd(coordinates, name) {
             });
             
             // Hover effects
-            shapeBtn.addEventListener('mouseenter', function() {
+            shapeBtn.addEventListener('mouseenter', function () {
                 if (!this.classList.contains('selected')) {
                     this.style.backgroundColor = '#e0e0e0';
                     this.style.transform = 'scale(1.05)';
                 }
             });
             
-            shapeBtn.addEventListener('mouseleave', function() {
+            shapeBtn.addEventListener('mouseleave', function () {
                 if (!this.classList.contains('selected')) {
                     this.style.backgroundColor = '#f5f5f5';
                     this.style.transform = 'scale(1)';
@@ -7918,7 +9062,7 @@ function showMarkerColorPickerOnAdd(coordinates, name) {
     
     // Helper to create handler
     const createConfirmHandler = () => {
-        const handler = function() {
+        const handler = function () {
             if (appState.pendingMarkerData) {
                 const currentSelectedColor = selectorContainer.querySelector('.marker-color-btn.selected');
                 const finalColor = currentSelectedColor ? currentSelectedColor.dataset.color : selectedColor;
@@ -7938,7 +9082,7 @@ function showMarkerColorPickerOnAdd(coordinates, name) {
     };
     
     const createUseDefaultHandler = () => {
-        const handler = function() {
+        const handler = function () {
             if (appState.pendingMarkerData) {
                 addMarker(
                     appState.pendingMarkerData.coordinates,
@@ -7954,7 +9098,7 @@ function showMarkerColorPickerOnAdd(coordinates, name) {
     };
     
     const createCancelHandler = () => {
-        const handler = function() {
+        const handler = function () {
             popup.style.display = 'none';
             appState.pendingMarkerData = null;
         };
@@ -7977,7 +9121,7 @@ function showMarkerColorPickerOnAdd(coordinates, name) {
     
     // Close popup when clicking outside
     setTimeout(() => {
-        const closeOnOutsideClick = function(e) {
+        const closeOnOutsideClick = function (e) {
             if (!popup.contains(e.target) && popup.style.display !== 'none') {
                 popup.style.display = 'none';
                 appState.pendingMarkerData = null;
@@ -8139,12 +9283,12 @@ function updateMarkerIcon(markerId, color, shape = 'pin') {
     
     // Add click event to new element (same as in addMarker)
     // Use mousedown to prevent map click event from firing
-    newEl.addEventListener('mousedown', function(e) {
+    newEl.addEventListener('mousedown', function (e) {
         e.stopPropagation();
         e.preventDefault();
     });
     
-    newEl.addEventListener('click', function(e) {
+    newEl.addEventListener('click', function (e) {
         e.stopPropagation();
         e.preventDefault();
         const markerInfo = appState.markers.find(m => m.id === markerId);
@@ -8236,15 +9380,15 @@ async function searchLocationForMarker(query, resultsDiv) {
                 <div style="font-size: 12px; color: #757575; margin-top: 4px;">${lat.toFixed(4)}, ${lng.toFixed(4)}</div>
             `;
             
-            resultItem.addEventListener('mouseenter', function() {
+            resultItem.addEventListener('mouseenter', function () {
                 this.style.backgroundColor = '#f5f5f5';
             });
             
-            resultItem.addEventListener('mouseleave', function() {
+            resultItem.addEventListener('mouseleave', function () {
                 this.style.backgroundColor = 'white';
             });
             
-            resultItem.addEventListener('click', function() {
+            resultItem.addEventListener('click', function () {
                 const name = feature.place_name;
                 
                 // Mapbox returns [lng, lat], which is what addMarker expects
@@ -8308,7 +9452,7 @@ function updateMarkersList() {
         // Add delete button event
         const deleteBtn = markerItem.querySelector('button[data-marker-id]');
         if (deleteBtn) {
-            deleteBtn.addEventListener('click', function(e) {
+            deleteBtn.addEventListener('click', function (e) {
                 e.stopPropagation();
                 removeMarker(markerInfo.id);
             });
@@ -8316,7 +9460,7 @@ function updateMarkersList() {
         
         // Add click to fly to marker
         markerItem.style.cursor = 'pointer';
-        markerItem.addEventListener('click', function(e) {
+        markerItem.addEventListener('click', function (e) {
             if (e.target.closest('button')) return; // Don't fly if clicking delete button
             
             appState.map.flyTo({
@@ -8447,7 +9591,7 @@ function showMarkerColorPickerOnAdd(coordinates, name) {
         }
         
         // Click handler to select color
-        colorBtn.addEventListener('click', function() {
+        colorBtn.addEventListener('click', function () {
             // Remove selected from all buttons
             selectorContainer.querySelectorAll('.marker-color-btn').forEach(b => {
                 b.classList.remove('selected');
@@ -8467,13 +9611,13 @@ function showMarkerColorPickerOnAdd(coordinates, name) {
         });
         
         // Hover effects
-        colorBtn.addEventListener('mouseenter', function() {
+        colorBtn.addEventListener('mouseenter', function () {
             if (!this.classList.contains('selected')) {
                 this.style.transform = 'scale(1.15)';
             }
         });
         
-        colorBtn.addEventListener('mouseleave', function() {
+        colorBtn.addEventListener('mouseleave', function () {
             if (!this.classList.contains('selected')) {
                 this.style.transform = 'scale(1)';
             }
@@ -8500,7 +9644,7 @@ function showMarkerColorPickerOnAdd(coordinates, name) {
     cancelBtn.parentNode.replaceChild(newCancelBtn, cancelBtn);
     
     // Confirm: Add marker with selected color
-    newConfirmBtn.addEventListener('click', function() {
+    newConfirmBtn.addEventListener('click', function () {
         if (appState.pendingMarkerData) {
             addMarker(
                 appState.pendingMarkerData.coordinates,
@@ -8513,7 +9657,7 @@ function showMarkerColorPickerOnAdd(coordinates, name) {
     });
     
     // Use Default: Add marker with sidebar default color
-    newUseDefaultBtn.addEventListener('click', function() {
+    newUseDefaultBtn.addEventListener('click', function () {
         if (appState.pendingMarkerData) {
             addMarker(
                 appState.pendingMarkerData.coordinates,
@@ -8526,14 +9670,14 @@ function showMarkerColorPickerOnAdd(coordinates, name) {
     });
     
     // Cancel: Close popup without adding marker
-    newCancelBtn.addEventListener('click', function() {
+    newCancelBtn.addEventListener('click', function () {
         popup.style.display = 'none';
         appState.pendingMarkerData = null;
     });
     
     // Close popup when clicking outside
     setTimeout(() => {
-        const closeOnOutsideClick = function(e) {
+        const closeOnOutsideClick = function (e) {
             if (!popup.contains(e.target) && popup.style.display !== 'none') {
                 popup.style.display = 'none';
                 appState.pendingMarkerData = null;
@@ -8556,5 +9700,6 @@ window.addMarker = addMarker;
 window.removeMarker = removeMarker;
 window.clearAllMarkers = clearAllMarkers;
 window.setWaterColor = setWaterColor;
-// ARCHIVED: window.updateCustomChineseLabels = updateCustomChineseLabels;
+window.updateCustomChineseLabels = updateCustomChineseLabels;
+window.removeCustomChineseLabels = removeCustomChineseLabels;
 
