@@ -106,9 +106,9 @@
 
     <!-- 加载核心模块 -->
     <script src="js/core/Logger.js?v=2"></script>
-    <script src="js/core/EventBus.js?v=2"></script>
-    <script src="js/core/StateManager.js?v=2"></script>
-    <script src="js/modules/MarkerIconManager.js?v=2"></script>
+    <script src="js/core/window.EventBus.js?v=2"></script>
+    <script src="js/core/window.StateManager.js?v=2"></script>
+    <script src="js/modules/window.MarkerIconManager.js?v=2"></script>
 
     <script>
         // EventBus 测试
@@ -127,34 +127,34 @@
             logEventBus('测试基本事件订阅和发布...');
             
             // 订阅事件
-            const unsubscribe = EventBus.on('test:click', (data) => {
+            const unsubscribe = window.EventBus.on('test:click', (data) => {
                 logEventBus(`收到事件: test:click, 数据: ${JSON.stringify(data)}`, 'success');
             });
 
             // 发布事件
-            EventBus.emit('test:click', { x: 100, y: 200 });
-            EventBus.emit('test:click', { message: 'Hello EventBus!' });
+            window.EventBus.emit('test:click', { x: 100, y: 200 });
+            window.EventBus.emit('test:click', { message: 'Hello EventBus!' });
 
             // 取消订阅
             unsubscribe();
-            EventBus.emit('test:click', { shouldNotReceive: true });
+            window.EventBus.emit('test:click', { shouldNotReceive: true });
             logEventBus('取消订阅后，应该不会收到上面的消息', 'success');
         }
 
         function testEventBusOnce() {
             logEventBus('测试一次性事件...');
             
-            EventBus.once('test:once', (data) => {
+            window.EventBus.once('test:once', (data) => {
                 logEventBus(`收到一次性事件: ${JSON.stringify(data)}`, 'success');
             });
 
-            EventBus.emit('test:once', { first: true });
-            EventBus.emit('test:once', { second: true }); // 不应该收到
+            window.EventBus.emit('test:once', { first: true });
+            window.EventBus.emit('test:once', { second: true }); // 不应该收到
             logEventBus('第二次事件应该不会触发（一次性订阅已自动取消）', 'success');
         }
 
         function testEventBusStats() {
-            const stats = EventBus.getStats();
+            const stats = window.EventBus.getStats();
             logEventBus(`事件统计: ${JSON.stringify(stats, null, 2)}`, 'info');
         }
 
@@ -172,40 +172,40 @@
 
         function testStateManagerInit() {
             logStateManager('初始化状态管理器...');
-            StateManager.init({ count: 0, user: null, theme: 'light' });
-            logStateManager(`初始化完成: ${JSON.stringify(StateManager.getAll())}`, 'success');
+            window.StateManager.init({ count: 0, user: null, theme: 'light' });
+            logStateManager(`初始化完成: ${JSON.stringify(window.StateManager.getAll())}`, 'success');
         }
 
         function testStateManagerSet() {
             logStateManager('设置状态值...');
-            StateManager.set('count', 10);
-            StateManager.set('user', { name: 'Test User', id: 1 });
-            logStateManager(`设置后的状态: ${JSON.stringify(StateManager.getAll())}`, 'success');
+            window.StateManager.set('count', 10);
+            window.StateManager.set('user', { name: 'Test User', id: 1 });
+            logStateManager(`设置后的状态: ${JSON.stringify(window.StateManager.getAll())}`, 'success');
         }
 
         function testStateManagerSubscribe() {
             logStateManager('订阅状态变化...');
             
-            const unsubscribe = StateManager.subscribe('count', (newVal, oldVal) => {
+            const unsubscribe = window.StateManager.subscribe('count', (newVal, oldVal) => {
                 logStateManager(`count 变化: ${oldVal} -> ${newVal}`, 'success');
             });
 
-            StateManager.set('count', 20);
-            StateManager.set('count', 30);
+            window.StateManager.set('count', 20);
+            window.StateManager.set('count', 30);
 
             unsubscribe();
-            StateManager.set('count', 40); // 不应该触发监听器
+            window.StateManager.set('count', 40); // 不应该触发监听器
             logStateManager('取消订阅后，应该不会收到上面的变化通知', 'success');
         }
 
         function testStateManagerUpdate() {
             logStateManager('批量更新状态...');
-            StateManager.update({
+            window.StateManager.update({
                 count: 100,
                 theme: 'dark',
                 user: { name: 'Updated User', id: 2 }
             });
-            logStateManager(`批量更新后的状态: ${JSON.stringify(StateManager.getAll())}`, 'success');
+            logStateManager(`批量更新后的状态: ${JSON.stringify(window.StateManager.getAll())}`, 'success');
         }
 
         // MarkerIconManager 测试
@@ -231,7 +231,7 @@
 
             types.forEach(type => {
                 colors.forEach(color => {
-                    const iconUrl = MarkerIconManager.getIconUrl(type, color, 40);
+                    const iconUrl = window.MarkerIconManager.getIconUrl(type, color, 40);
                     const div = document.createElement('div');
                     div.className = 'icon-preview';
                     div.innerHTML = `
@@ -249,19 +249,19 @@
 
         function testMarkerIconCache() {
             logMarkerIcon('测试图标缓存...');
-            const stats1 = MarkerIconManager.getCacheStats();
+            const stats1 = window.MarkerIconManager.getCacheStats();
             logMarkerIcon(`初始缓存: ${stats1.cacheSize} 个图标`);
 
             // 生成相同的图标（应该使用缓存）
-            MarkerIconManager.getIconUrl('default', '#FF0000', 40);
-            MarkerIconManager.getIconUrl('default', '#FF0000', 40);
-            MarkerIconManager.getIconUrl('default', '#FF0000', 40);
+            window.MarkerIconManager.getIconUrl('default', '#FF0000', 40);
+            window.MarkerIconManager.getIconUrl('default', '#FF0000', 40);
+            window.MarkerIconManager.getIconUrl('default', '#FF0000', 40);
 
-            const stats2 = MarkerIconManager.getCacheStats();
+            const stats2 = window.MarkerIconManager.getCacheStats();
             logMarkerIcon(`生成3次相同图标后缓存: ${stats2.cacheSize} 个图标（应该只有1个）`, 'success');
 
-            MarkerIconManager.clearCache();
-            const stats3 = MarkerIconManager.getCacheStats();
+            window.MarkerIconManager.clearCache();
+            const stats3 = window.MarkerIconManager.getCacheStats();
             logMarkerIcon(`清空缓存后: ${stats3.cacheSize} 个图标`, 'success');
         }
 
@@ -281,24 +281,24 @@
             logIntegration('开始集成测试...');
 
             // 1. 使用 StateManager 管理应用状态
-            StateManager.init({ markerCount: 0, selectedColor: '#6CA7A1' });
+            window.StateManager.init({ markerCount: 0, selectedColor: '#6CA7A1' });
             logIntegration('✅ StateManager 初始化成功', 'success');
 
             // 2. 使用 EventBus 发布状态变化事件
-            StateManager.subscribe('markerCount', (newVal, oldVal) => {
-                EventBus.emit('marker:countChanged', { count: newVal, previous: oldVal });
+            window.StateManager.subscribe('markerCount', (newVal, oldVal) => {
+                window.EventBus.emit('marker:countChanged', { count: newVal, previous: oldVal });
                 logIntegration(`✅ 通过 EventBus 发布 marker:countChanged 事件`, 'success');
             });
 
-            EventBus.on('marker:countChanged', (data) => {
+            window.EventBus.on('marker:countChanged', (data) => {
                 logIntegration(`✅ 收到 marker:countChanged 事件: count=${data.count}`, 'success');
             });
 
-            StateManager.set('markerCount', 5);
+            window.StateManager.set('markerCount', 5);
             logIntegration('✅ StateManager -> EventBus 集成成功', 'success');
 
             // 3. 使用 MarkerIconManager 生成图标
-            const icon = MarkerIconManager.getIcon('default', StateManager.get('selectedColor'));
+            const icon = window.MarkerIconManager.getIcon('default', window.StateManager.get('selectedColor'));
             logIntegration(`✅ MarkerIconManager 生成图标成功: ${icon.url.substring(0, 50)}...`, 'success');
 
             // 4. 所有模块正常工作
