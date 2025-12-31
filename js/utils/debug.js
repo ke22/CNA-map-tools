@@ -69,8 +69,9 @@ function formatMessage(level, message, data = null) {
 
 /**
  * Logger object with different log levels
+ * Note: If core/Logger.js is loaded first, use that instead
  */
-const Logger = {
+const DebugLogger = {
     error: function(message, data = null) {
         if (shouldLog('error')) {
             const formatted = formatMessage('error', message, data);
@@ -153,6 +154,9 @@ const Logger = {
     }
 };
 
+// Use DebugLogger as Logger only if core/Logger.js hasn't been loaded
+const Logger = DebugLogger;
+
 /**
  * Performance monitoring
  */
@@ -166,7 +170,7 @@ const PerformanceMonitor = {
         const startTime = performance.now();
         this.timers.set(operation, startTime);
         
-        Logger.debug(`⏱️ Started: ${operation}`);
+        DebugLogger.debug(`⏱️ Started: ${operation}`);
     },
     
     end: function(operation) {
@@ -189,9 +193,9 @@ const PerformanceMonitor = {
         // Log slow operations
         if (DEBUG_CONFIG.performance.logSlowOperations && 
             duration > DEBUG_CONFIG.performance.slowOperationThreshold) {
-            Logger.warn(`🐌 Slow operation detected: ${operation} took ${duration.toFixed(2)}ms`);
+            DebugLogger.warn(`🐌 Slow operation detected: ${operation} took ${duration.toFixed(2)}ms`);
         } else {
-            Logger.debug(`⏱️ Completed: ${operation} (${duration.toFixed(2)}ms)`);
+            DebugLogger.debug(`⏱️ Completed: ${operation} (${duration.toFixed(2)}ms)`);
         }
         
         return duration;
@@ -275,7 +279,7 @@ const MemoryMonitor = {
     log: function() {
         const memory = this.check();
         if (memory) {
-            Logger.info(`💾 Memory: ${memory.used} / ${memory.total} (limit: ${memory.limit})`);
+            DebugLogger.info(`💾 Memory: ${memory.used} / ${memory.total} (limit: ${memory.limit})`);
         }
     }
 };
@@ -284,27 +288,23 @@ const MemoryMonitor = {
 // Note: If core/Logger.js is loaded first, it will override window.Logger
 // This file provides PerformanceMonitor and MemoryMonitor as additional utilities
 if (typeof window !== 'undefined') {
+    // Always export DebugLogger (the original debug.js Logger)
+    window.DebugLogger = DebugLogger;
+    
     // Only set Logger if it doesn't exist (allow core/Logger.js to take precedence)
     if (!window.Logger) {
-        window.Logger = Logger;
-    } else {
-        // If Logger already exists (from core/Logger.js), merge our additional utilities
-        // Store this Logger as DebugLogger for reference
-        window.DebugLogger = Logger;
+        window.Logger = DebugLogger;
+        // Quick access functions (only if Logger was set by this file)
+        window.log = DebugLogger.info;
+        window.logError = DebugLogger.error;
+        window.logWarn = DebugLogger.warn;
+        window.logDebug = DebugLogger.debug;
     }
     
     // Always export these utilities (they work with any Logger)
     window.PerformanceMonitor = PerformanceMonitor;
     window.MemoryMonitor = MemoryMonitor;
     window.DEBUG_CONFIG = DEBUG_CONFIG;
-    
-    // Quick access functions (only if Logger was set by this file)
-    if (!window.log) {
-        window.log = Logger.info;
-        window.logError = Logger.error;
-        window.logWarn = Logger.warn;
-        window.logDebug = Logger.debug;
-    }
 }
 
 
