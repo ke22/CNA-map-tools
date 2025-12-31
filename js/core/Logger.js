@@ -5,10 +5,13 @@
  * This module provides a centralized logging interface that can be used
  * throughout the application, replacing direct console.log calls.
  * 
- * Usage:
- *   import { Logger } from './core/Logger.js';
+ * Usage (Browser):
  *   Logger.info('Message');
  *   Logger.error('Error message', errorData);
+ * 
+ * Usage (Node.js):
+ *   const Logger = require('./core/Logger.js');
+ *   Logger.info('Message');
  */
 
 // Import existing Logger if available (for backward compatibility)
@@ -218,7 +221,7 @@ class Logger {
     }
 }
 
-// Export for ES6 modules
+// Export for Node.js (CommonJS)
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = Logger;
 }
@@ -254,5 +257,6 @@ if (ExistingLogger && typeof ExistingLogger === 'object') {
     });
 }
 
-export default Logger;
+// Note: ES6 export removed for browser compatibility
+// Logger is available via window.Logger instead
 
