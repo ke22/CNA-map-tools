@@ -222,7 +222,9 @@ class StateManager {
         this.listeners.clear();
         this.globalListeners.clear();
         this.isInitialized = false;
-        Logger.info('StateManager: Reset');
+        if (typeof Logger !== 'undefined' && Logger.info) {
+            Logger.info('StateManager: Reset');
+        }
     }
 
     /**
@@ -275,7 +277,11 @@ class StateManager {
             try {
                 listener(newValue, oldValue, key);
             } catch (error) {
-                Logger.error(`StateManager: Error in listener for key "${key}"`, error);
+                if (typeof Logger !== 'undefined' && Logger.error) {
+                    Logger.error(`StateManager: Error in listener for key "${key}"`, error);
+                } else {
+                    console.error(`StateManager: Error in listener for key "${key}"`, error);
+                }
             }
         });
     }
