@@ -607,8 +607,13 @@
     <!-- Configuration -->
     <script src="config.js"></script>
     
-    <!-- Core Logger Module (load FIRST to ensure it's used) -->
+    <!-- Core Modules (load FIRST) -->
     <script src="js/core/Logger.js"></script>
+    <script src="js/core/EventBus.js"></script>
+    <script src="js/core/StateManager.js"></script>
+    
+    <!-- Feature Modules -->
+    <script src="js/modules/MarkerIconManager.js"></script>
     
     <!-- Optimization Utilities (load before main app) -->
     <script src="js/utils/debug.js"></script>
