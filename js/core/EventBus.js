@@ -186,11 +186,7 @@ if (typeof window !== 'undefined') {
     // Create singleton instance
     window.EventBus = new EventBus();
     
-    // Also provide class for advanced usage (as EventBusClass to avoid conflict)
+    // Also provide class for advanced usage
     window.EventBusClass = EventBus;
-    
-    // For convenience, also expose as global EventBus (shadowing the class name)
-    // This allows code to use EventBus.on() directly
-    var EventBus = window.EventBus;  // This will be hoisted and shadow the class
 }
 
