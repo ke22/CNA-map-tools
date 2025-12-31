@@ -281,17 +281,30 @@ const MemoryMonitor = {
 };
 
 // Export to global scope for easy access
+// Note: If core/Logger.js is loaded first, it will override window.Logger
+// This file provides PerformanceMonitor and MemoryMonitor as additional utilities
 if (typeof window !== 'undefined') {
-    window.Logger = Logger;
+    // Only set Logger if it doesn't exist (allow core/Logger.js to take precedence)
+    if (!window.Logger) {
+        window.Logger = Logger;
+    } else {
+        // If Logger already exists (from core/Logger.js), merge our additional utilities
+        // Store this Logger as DebugLogger for reference
+        window.DebugLogger = Logger;
+    }
+    
+    // Always export these utilities (they work with any Logger)
     window.PerformanceMonitor = PerformanceMonitor;
     window.MemoryMonitor = MemoryMonitor;
     window.DEBUG_CONFIG = DEBUG_CONFIG;
     
-    // Quick access functions
-    window.log = Logger.info;
-    window.logError = Logger.error;
-    window.logWarn = Logger.warn;
-    window.logDebug = Logger.debug;
+    // Quick access functions (only if Logger was set by this file)
+    if (!window.log) {
+        window.log = Logger.info;
+        window.logError = Logger.error;
+        window.logWarn = Logger.warn;
+        window.logDebug = Logger.debug;
+    }
 }
 
 

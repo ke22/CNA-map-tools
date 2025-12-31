@@ -231,9 +231,11 @@ if (typeof window !== 'undefined') {
     // Always set CoreLogger
     window.CoreLogger = Logger;
     
+    // Store reference to old Logger if it exists (before we override it)
+    const oldLogger = window.Logger;
+    
     // Override window.Logger with new Logger (new Logger takes precedence)
     // This allows new Logger to be used even if debug.js loads later
-    const oldLogger = window.Logger;
     window.Logger = Logger;
     
     // Quick access functions for convenience
@@ -242,20 +244,20 @@ if (typeof window !== 'undefined') {
     window.logWarn = Logger.warn;
     window.logDebug = Logger.debug;
     window.logSuccess = Logger.success;
-}
-
-// For backward compatibility with existing debug.js
-// Store reference to old Logger for feature merging (but don't use it as primary)
-// The new Logger will be the primary, but we preserve old Logger's additional methods if any
-if (oldLogger && typeof oldLogger === 'object' && oldLogger !== Logger) {
-    // Keep old Logger's additional methods if they don't exist in new Logger
-    Object.keys(oldLogger).forEach(key => {
-        if (!Logger[key] && typeof oldLogger[key] === 'function') {
-            Logger[key] = oldLogger[key];
-        }
-    });
-    // Store old Logger as OldLogger for reference
-    window.OldLogger = oldLogger;
+    
+    // For backward compatibility with existing debug.js
+    // Store reference to old Logger for feature merging (but don't use it as primary)
+    // The new Logger will be the primary, but we preserve old Logger's additional methods if any
+    if (oldLogger && typeof oldLogger === 'object' && oldLogger !== Logger) {
+        // Keep old Logger's additional methods if they don't exist in new Logger
+        Object.keys(oldLogger).forEach(key => {
+            if (!Logger[key] && typeof oldLogger[key] === 'function') {
+                Logger[key] = oldLogger[key];
+            }
+        });
+        // Store old Logger as OldLogger for reference
+        window.OldLogger = oldLogger;
+    }
 }
 
 // Note: ES6 export removed for browser compatibility
