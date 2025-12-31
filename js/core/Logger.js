@@ -228,15 +228,13 @@ if (typeof module !== 'undefined' && module.exports) {
 
 // Export for global scope (backward compatibility)
 if (typeof window !== 'undefined') {
-    // Use existing Logger if available, otherwise create new one
-    if (!window.CoreLogger) {
-        window.CoreLogger = Logger;
-    }
+    // Always set CoreLogger
+    window.CoreLogger = Logger;
     
-    // Also provide as Logger if not already defined
-    if (!window.Logger) {
-        window.Logger = Logger;
-    }
+    // Override window.Logger with new Logger (new Logger takes precedence)
+    // This allows new Logger to be used even if debug.js loads later
+    const oldLogger = window.Logger;
+    window.Logger = Logger;
     
     // Quick access functions for convenience
     window.log = Logger.info;
@@ -247,14 +245,17 @@ if (typeof window !== 'undefined') {
 }
 
 // For backward compatibility with existing debug.js
-// If existing Logger is available, merge functionality
-if (ExistingLogger && typeof ExistingLogger === 'object') {
-    // Keep existing Logger methods if they exist
-    Object.keys(ExistingLogger).forEach(key => {
-        if (!Logger[key] && typeof ExistingLogger[key] === 'function') {
-            Logger[key] = ExistingLogger[key];
+// Store reference to old Logger for feature merging (but don't use it as primary)
+// The new Logger will be the primary, but we preserve old Logger's additional methods if any
+if (oldLogger && typeof oldLogger === 'object' && oldLogger !== Logger) {
+    // Keep old Logger's additional methods if they don't exist in new Logger
+    Object.keys(oldLogger).forEach(key => {
+        if (!Logger[key] && typeof oldLogger[key] === 'function') {
+            Logger[key] = oldLogger[key];
         }
     });
+    // Store old Logger as OldLogger for reference
+    window.OldLogger = oldLogger;
 }
 
 // Note: ES6 export removed for browser compatibility

@@ -607,6 +607,9 @@
     <!-- Configuration -->
     <script src="config.js"></script>
     
+    <!-- Core Logger Module (load FIRST to ensure it's used) -->
+    <script src="js/core/Logger.js"></script>
+    
     <!-- Optimization Utilities (load before main app) -->
     <script src="js/utils/debug.js"></script>
     <script src="js/utils/cache.js"></script>
@@ -630,9 +633,6 @@
     
     <!-- GADM Data Loader (fallback for global administrative boundaries) -->
     <script src="js/app-gadm.js"></script>
-    
-    <!-- Core Logger Module (load before app-enhanced.js) -->
-    <script src="js/core/Logger.js"></script>
     
     <!-- Enhanced Application -->
     <script src="js/app-enhanced.js?v=35"></script>
