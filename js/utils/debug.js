@@ -154,9 +154,6 @@ const DebugLogger = {
     }
 };
 
-// Use DebugLogger as Logger only if core/Logger.js hasn't been loaded
-const Logger = DebugLogger;
-
 /**
  * Performance monitoring
  */
