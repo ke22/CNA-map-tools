@@ -45,7 +45,11 @@ class MarkerIconManager {
                 svg = this._generatePinIcon(color, size);
                 break;
             default:
-                Logger.warn(`MarkerIconManager: Unknown icon type "${type}", using default`);
+                if (typeof Logger !== 'undefined' && Logger.warn) {
+                    Logger.warn(`MarkerIconManager: Unknown icon type "${type}", using default`);
+                } else {
+                    console.warn(`MarkerIconManager: Unknown icon type "${type}", using default`);
+                }
                 svg = this._generateDefaultIcon(color, size);
         }
 
@@ -93,7 +97,9 @@ class MarkerIconManager {
         types.forEach(type => {
             this.generateIconSVG(type, color, size);
         });
-        Logger.info(`MarkerIconManager: Preloaded ${types.length} icon(s)`);
+        if (typeof Logger !== 'undefined' && Logger.info) {
+            Logger.info(`MarkerIconManager: Preloaded ${types.length} icon(s)`);
+        }
     }
 
     /**
@@ -102,7 +108,9 @@ class MarkerIconManager {
     clearCache() {
         const cacheSize = this.iconCache.size;
         this.iconCache.clear();
-        Logger.info(`MarkerIconManager: Cleared cache (${cacheSize} icons)`);
+        if (typeof Logger !== 'undefined' && Logger.info) {
+            Logger.info(`MarkerIconManager: Cleared cache (${cacheSize} icons)`);
+        }
     }
 
     /**
@@ -199,7 +207,9 @@ class MarkerIconManager {
      */
     setDefaultColor(color) {
         this.defaultColor = color;
-        Logger.info(`MarkerIconManager: Default color set to ${color}`);
+        if (typeof Logger !== 'undefined' && Logger.info) {
+            Logger.info(`MarkerIconManager: Default color set to ${color}`);
+        }
     }
 
     /**
@@ -208,7 +218,9 @@ class MarkerIconManager {
      */
     setDefaultSize(size) {
         this.iconSize = size;
-        Logger.info(`MarkerIconManager: Default size set to ${size}px`);
+        if (typeof Logger !== 'undefined' && Logger.info) {
+            Logger.info(`MarkerIconManager: Default size set to ${size}px`);
+        }
     }
 }
 

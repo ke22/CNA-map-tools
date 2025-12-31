@@ -36,12 +36,20 @@ class StateManager {
      */
     init(initialState = {}, overwrite = false) {
         if (this.isInitialized && !overwrite) {
-            Logger.warn('StateManager: Already initialized. Use update() to modify state.');
+            if (typeof Logger !== 'undefined' && Logger.warn) {
+                Logger.warn('StateManager: Already initialized. Use update() to modify state.');
+            } else {
+                console.warn('StateManager: Already initialized. Use update() to modify state.');
+            }
             return;
         }
 
         if (typeof initialState !== 'object' || initialState === null) {
-            Logger.error('StateManager.init: initialState must be an object');
+            if (typeof Logger !== 'undefined' && Logger.error) {
+                Logger.error('StateManager.init: initialState must be an object');
+            } else {
+                console.error('StateManager.init: initialState must be an object');
+            }
             return;
         }
 
@@ -55,7 +63,9 @@ class StateManager {
         // Notify global listeners
         this._notifyGlobalListeners(this.state, oldState);
 
-        Logger.info('StateManager: Initialized', { keys: Object.keys(this.state) });
+        if (typeof Logger !== 'undefined' && Logger.info) {
+            Logger.info('StateManager: Initialized', { keys: Object.keys(this.state) });
+        }
     }
 
     /**
@@ -86,7 +96,11 @@ class StateManager {
      */
     set(key, value) {
         if (!this.isInitialized) {
-            Logger.warn(`StateManager.set: Not initialized. Auto-initializing with key "${key}"`);
+            if (typeof Logger !== 'undefined' && Logger.warn) {
+                Logger.warn(`StateManager.set: Not initialized. Auto-initializing with key "${key}"`);
+            } else {
+                console.warn(`StateManager.set: Not initialized. Auto-initializing with key "${key}"`);
+            }
             this.init({});
         }
 
@@ -106,12 +120,20 @@ class StateManager {
      */
     update(updates) {
         if (!this.isInitialized) {
-            Logger.warn('StateManager.update: Not initialized. Auto-initializing.');
+            if (typeof Logger !== 'undefined' && Logger.warn) {
+                Logger.warn('StateManager.update: Not initialized. Auto-initializing.');
+            } else {
+                console.warn('StateManager.update: Not initialized. Auto-initializing.');
+            }
             this.init({});
         }
 
         if (typeof updates !== 'object' || updates === null) {
-            Logger.error('StateManager.update: updates must be an object');
+            if (typeof Logger !== 'undefined' && Logger.error) {
+                Logger.error('StateManager.update: updates must be an object');
+            } else {
+                console.error('StateManager.update: updates must be an object');
+            }
             return;
         }
 
@@ -139,7 +161,11 @@ class StateManager {
      */
     subscribe(key, listener) {
         if (typeof listener !== 'function') {
-            Logger.warn(`StateManager.subscribe: listener must be a function for key "${key}"`);
+            if (typeof Logger !== 'undefined' && Logger.warn) {
+                Logger.warn(`StateManager.subscribe: listener must be a function for key "${key}"`);
+            } else {
+                console.warn(`StateManager.subscribe: listener must be a function for key "${key}"`);
+            }
             return () => {};
         }
 
@@ -263,7 +289,11 @@ class StateManager {
             try {
                 listener(newState, oldState);
             } catch (error) {
-                Logger.error('StateManager: Error in global listener', error);
+                if (typeof Logger !== 'undefined' && Logger.error) {
+                    Logger.error('StateManager: Error in global listener', error);
+                } else {
+                    console.error('StateManager: Error in global listener', error);
+                }
             }
         });
     }

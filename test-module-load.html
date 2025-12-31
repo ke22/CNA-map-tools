@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head><title>Module Test</title></head>
+<body>
+<script>
+console.log('Testing module loading...');
+
+// Load Logger first
+const script1 = document.createElement('script');
+script1.src = 'js/core/Logger.js';
+script1.onload = () => {
+    console.log('Logger loaded, type:', typeof window.Logger);
+    
+    // Then load EventBus
+    const script2 = document.createElement('script');
+    script2.src = 'js/core/EventBus.js';
+    script2.onload = () => {
+        console.log('EventBus loaded');
+        console.log('typeof window.EventBus:', typeof window.EventBus);
+        console.log('window.EventBus:', window.EventBus);
+        if (window.EventBus) {
+            console.log('EventBus.on:', typeof window.EventBus.on);
+        } else {
+            console.error('EventBus is not defined!');
+        }
+    };
+    script2.onerror = (e) => {
+        console.error('Failed to load EventBus:', e);
+    };
+    document.head.appendChild(script2);
+};
+document.head.appendChild(script1);
+</script>
+</body>
+</html>

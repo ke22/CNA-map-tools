@@ -33,7 +33,11 @@ class EventBus {
      */
     on(eventName, handler) {
         if (typeof handler !== 'function') {
-            Logger.warn(`EventBus.on: handler must be a function for event "${eventName}"`);
+            if (typeof Logger !== 'undefined' && Logger.warn) {
+                Logger.warn(`EventBus.on: handler must be a function for event "${eventName}"`);
+            } else {
+                console.warn(`EventBus.on: handler must be a function for event "${eventName}"`);
+            }
             return () => {};
         }
 
@@ -101,7 +105,11 @@ class EventBus {
             try {
                 handler(data);
             } catch (error) {
-                Logger.error(`EventBus: Error in handler for event "${eventName}"`, error);
+                if (typeof Logger !== 'undefined' && Logger.error) {
+                    Logger.error(`EventBus: Error in handler for event "${eventName}"`, error);
+                } else {
+                    console.error(`EventBus: Error in handler for event "${eventName}"`, error);
+                }
             }
         });
     }
