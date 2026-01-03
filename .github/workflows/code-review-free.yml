@@ -1,0 +1,26 @@
+name: Code Review (Free)
+
+on:
+  pull_request:
+    branches: [main, develop, master]
+    types: [opened, synchronize, reopened]
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+      - run: npm ci
+      - name: Run checks
+        run: |
+          echo "## Code Review Results" >> $GITHUB_STEP_SUMMARY
+          npm run lint 2>&1 | tee lint-output.txt || true
+          npm run format:check 2>&1 | tee format-output.txt || true
+          echo "### ESLint" >> $GITHUB_STEP_SUMMARY
+          cat lint-output.txt >> $GITHUB_STEP_SUMMARY || echo "✅ No issues" >> $GITHUB_STEP_SUMMARY
+          echo "### Formatting" >> $GITHUB_STEP_SUMMARY
+          cat format-output.txt >> $GITHUB_STEP_SUMMARY || echo "✅ All formatted" >> $GITHUB_STEP_SUMMARY
