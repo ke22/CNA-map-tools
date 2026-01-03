@@ -28,6 +28,14 @@ jobs:
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
       
+      - name: Run linting
+        run: npm run lint
+        continue-on-error: true
+      
+      - name: Check formatting
+        run: npm run format:check
+        continue-on-error: true
+      
       - name: Run Playwright tests
         run: npx playwright test
         env:

@@ -1,0 +1,82 @@
+name: YOLO Push - Auto-fix Lint/Format Errors
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types:
+      - completed
+    branches: [main, develop, master]
+
+jobs:
+  auto-fix:
+    name: Auto-fix CI Failures
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'failure' }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          ref: ${{ github.event.workflow_run.head_branch }}
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Get CI failure details
+        id: failure-details
+        run: |
+          echo "Checking for lint/format errors..."
+          # This will be populated by Claude Code Action
+      
+      - name: Auto-fix with Claude Code
+        uses: anthropics/claude-code-action@v1
+        with:
+          allow-list: |
+            - Fix ESLint errors
+            - Fix formatting issues (indentation, spacing, quotes)
+            - Remove unused imports
+            - Fix missing semicolons
+            - Fix trailing commas
+            - Fix variable naming issues (camelCase)
+            - Fix simple type errors
+            - Fix missing return statements
+            - Fix console.log statements (replace with proper logging)
+          deny-list: |
+            - Security changes
+            - API key changes
+            - Authentication logic
+            - Data access patterns
+            - Business logic changes
+            - Functionality changes
+            - Test logic changes
+            - Configuration changes
+          max-turns: 3
+          prompt: |
+            The CI workflow failed. Please analyze the error output and fix only mechanical issues:
+            - Linting errors (ESLint)
+            - Formatting issues (Prettier)
+            - Unused imports
+            - Simple syntax errors
+            
+            DO NOT:
+            - Change business logic
+            - Modify test cases
+            - Change security-related code
+            - Alter API endpoints
+            
+            After fixing, commit the changes and the workflow will re-run.
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      
+      - name: Re-run CI
+        if: success()
+        run: |
+          echo "✅ Auto-fix completed. CI will re-run automatically."
+

@@ -1,0 +1,67 @@
+name: Multi-Agent Code Review
+
+on:
+  pull_request:
+    branches: [main, develop, master]
+    types: [opened, synchronize, reopened]
+
+jobs:
+  code-review:
+    name: Multi-Agent Code Review
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0  # Full history for context
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Run Multi-Agent Code Review
+        uses: anthropics/claude-code-action@v1
+        with:
+          prompt: |
+            Perform a comprehensive code review of this pull request using multiple specialized agents:
+            
+            Agent 1: CLAUDE.md Compliance Checker
+            - Review changes against CLAUDE.md guidelines
+            - Check code style (camelCase, ES6+, comments)
+            - Verify architecture decisions are followed
+            - Check for prohibited patterns
+            
+            Agent 2: Error Detection Agent
+            - Look for obvious bugs and errors
+            - Check for potential runtime issues
+            - Verify error handling
+            - Check for memory leaks or performance issues
+            
+            Agent 3: Context Analysis Agent
+            - Analyze git history and blame information
+            - Understand the context of changes
+            - Check if changes align with project direction
+            - Verify consistency with existing codebase
+            
+            For each finding, provide:
+            1. Confidence score (0-100)
+            2. Severity (critical, high, medium, low)
+            3. Specific file and line reference
+            4. Suggested fix (if applicable)
+            
+            Only report findings with confidence >= 80.
+            
+            Format output as GitHub PR comments with:
+            - File path
+            - Line number
+            - Confidence score
+            - Issue description
+            - Suggested fix
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+
