@@ -1,0 +1,18 @@
+{
+  "watch": [
+    "*.js",
+    "*.html",
+    "js/**/*.js",
+    "css/**/*.css",
+    "data/**/*.geojson"
+  ],
+  "ext": "js,html,css,geojson",
+  "ignore": [
+    "node_modules/**",
+    "*.log",
+    ".git/**"
+  ],
+  "delay": 500
+}
+
+

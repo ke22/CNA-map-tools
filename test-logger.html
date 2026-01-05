@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Logger 模块测试</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .test-container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            background: #f9f9f9;
+            border-radius: 4px;
+            border-left: 4px solid #2196f3;
+        }
+        .test-section h2 {
+            margin-top: 0;
+            color: #2196f3;
+            font-size: 18px;
+        }
+        button {
+            background: #2196f3;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+            font-size: 14px;
+        }
+        button:hover {
+            background: #1976d2;
+        }
+        .result {
+            margin-top: 15px;
+            padding: 10px;
+            background: #e3f2fd;
+            border-radius: 4px;
+            font-size: 14px;
+            color: #1976d2;
+        }
+        .success {
+            background: #e8f5e9;
+            color: #2e7d32;
+        }
+        .error {
+            background: #ffebee;
+            color: #c62828;
+        }
+        code {
+            background: #f5f5f5;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Monaco', 'Courier New', monospace;
+            font-size: 13px;
+        }
+        .console-output {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 15px;
+            border-radius: 4px;
+            font-family: 'Monaco', 'Courier New', monospace;
+            font-size: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+            margin-top: 15px;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1>🔍 Logger 模块测试</h1>
+        <p class="subtitle">测试新的核心 Logger 模块功能</p>
+        
+        <div class="test-section">
+            <h2>1. 基本日志功能测试</h2>
+            <p>测试各种日志级别是否正常工作</p>
+            <button onclick="testBasicLogging()">运行基本日志测试</button>
+            <div id="basic-result" class="result" style="display:none;"></div>
+        </div>
+        
+        <div class="test-section">
+            <h2>2. 日志级别控制测试</h2>
+            <p>测试日志级别过滤功能</p>
+            <button onclick="testLogLevels()">运行级别控制测试</button>
+            <div id="level-result" class="result" style="display:none;"></div>
+        </div>
+        
+        <div class="test-section">
+            <h2>3. 数据日志测试</h2>
+            <p>测试带数据的日志输出</p>
+            <button onclick="testDataLogging()">运行数据日志测试</button>
+            <div id="data-result" class="result" style="display:none;"></div>
+        </div>
+        
+        <div class="test-section">
+            <h2>4. 性能计时测试</h2>
+            <p>测试性能计时功能</p>
+            <button onclick="testPerformance()">运行性能测试</button>
+            <div id="perf-result" class="result" style="display:none;"></div>
+        </div>
+        
+        <div class="test-section">
+            <h2>5. 兼容性测试</h2>
+            <p>测试与现有代码的兼容性</p>
+            <button onclick="testCompatibility()">运行兼容性测试</button>
+            <div id="compat-result" class="result" style="display:none;"></div>
+        </div>
+        
+        <div class="test-section">
+            <h2>6. 控制台输出</h2>
+            <p>查看浏览器控制台的日志输出（打开开发者工具）</p>
+            <div class="console-output" id="console-output">
+                <div style="color: #888;">打开浏览器开发者工具（F12）查看控制台输出...</div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Load Logger Module -->
+    <script src="js/core/Logger.js"></script>
+    
+    <script>
+        // Capture console output
+        const originalLog = console.log;
+        const originalWarn = console.warn;
+        const originalError = console.error;
+        const consoleOutput = document.getElementById('console-output');
+        
+        function addToConsoleOutput(type, ...args) {
+            const div = document.createElement('div');
+            const timestamp = new Date().toLocaleTimeString();
+            const typeColor = {
+                'log': '#4caf50',
+                'warn': '#ff9800',
+                'error': '#f44336',
+                'info': '#2196f3'
+            };
+            div.innerHTML = `<span style="color: #888;">[${timestamp}]</span> <span style="color: ${typeColor[type] || '#fff'};">[${type.toUpperCase()}]</span> ${args.map(arg => 
+                typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
+            ).join(' ')}`;
+            consoleOutput.appendChild(div);
+            consoleOutput.scrollTop = consoleOutput.scrollHeight;
+        }
+        
+        console.log = function(...args) {
+            originalLog.apply(console, args);
+            addToConsoleOutput('log', ...args);
+        };
+        
+        console.warn = function(...args) {
+            originalWarn.apply(console, args);
+            addToConsoleOutput('warn', ...args);
+        };
+        
+        console.error = function(...args) {
+            originalError.apply(console, args);
+            addToConsoleOutput('error', ...args);
+        };
+        
+        // Test functions
+        function testBasicLogging() {
+            const result = document.getElementById('basic-result');
+            result.style.display = 'block';
+            
+            try {
+                Logger.info('这是一条信息日志');
+                Logger.warn('这是一条警告日志');
+                Logger.error('这是一条错误日志');
+                Logger.debug('这是一条调试日志');
+                Logger.success('这是一条成功日志');
+                Logger.trace('这是一条追踪日志');
+                
+                result.className = 'result success';
+                result.innerHTML = '✅ 所有基本日志功能测试通过！<br>请查看控制台输出确认格式正确。';
+            } catch (error) {
+                result.className = 'result error';
+                result.innerHTML = `❌ 测试失败: ${error.message}`;
+            }
+        }
+        
+        function testLogLevels() {
+            const result = document.getElementById('level-result');
+            result.style.display = 'block';
+            
+            try {
+                result.innerHTML = '<strong>测试不同日志级别：</strong><br><br>';
+                
+                // Test 'error' level (should only show errors)
+                Logger.setLevel('error');
+                result.innerHTML += '<code>Logger.setLevel("error")</code> - 应该只显示错误日志<br>';
+                Logger.info('这条信息不应该显示');
+                Logger.warn('这条警告不应该显示');
+                Logger.error('这条错误应该显示 ✅');
+                
+                // Test 'warn' level
+                Logger.setLevel('warn');
+                result.innerHTML += '<br><code>Logger.setLevel("warn")</code> - 应该显示警告和错误<br>';
+                Logger.info('这条信息不应该显示');
+                Logger.warn('这条警告应该显示 ✅');
+                Logger.error('这条错误应该显示 ✅');
+                
+                // Test 'info' level
+                Logger.setLevel('info');
+                result.innerHTML += '<br><code>Logger.setLevel("info")</code> - 应该显示信息、警告和错误<br>';
+                Logger.info('这条信息应该显示 ✅');
+                Logger.warn('这条警告应该显示 ✅');
+                Logger.error('这条错误应该显示 ✅');
+                Logger.debug('这条调试不应该显示');
+                
+                // Reset to 'info'
+                Logger.setLevel('info');
+                
+                result.className = 'result success';
+                result.innerHTML += '<br><br>✅ 日志级别控制测试通过！';
+            } catch (error) {
+                result.className = 'result error';
+                result.innerHTML = `❌ 测试失败: ${error.message}`;
+            }
+        }
+        
+        function testDataLogging() {
+            const result = document.getElementById('data-result');
+            result.style.display = 'block';
+            
+            try {
+                const testData = {
+                    name: '测试数据',
+                    value: 123,
+                    nested: {
+                        key: 'value'
+                    }
+                };
+                
+                Logger.info('带数据的日志', testData);
+                Logger.error('带错误数据的日志', { error: '测试错误', code: 500 });
+                
+                result.className = 'result success';
+                result.innerHTML = '✅ 数据日志测试通过！<br>请查看控制台确认数据格式正确。';
+            } catch (error) {
+                result.className = 'result error';
+                result.innerHTML = `❌ 测试失败: ${error.message}`;
+            }
+        }
+        
+        function testPerformance() {
+            const result = document.getElementById('perf-result');
+            result.style.display = 'block';
+            
+            try {
+                Logger.setLevel('debug'); // Enable debug for performance logs
+                
+                Logger.time('test-operation');
+                // Simulate some work
+                let sum = 0;
+                for (let i = 0; i < 1000000; i++) {
+                    sum += i;
+                }
+                Logger.timeEnd('test-operation');
+                
+                result.className = 'result success';
+                result.innerHTML = '✅ 性能计时测试通过！<br>请查看控制台确认计时输出。';
+            } catch (error) {
+                result.className = 'result error';
+                result.innerHTML = `❌ 测试失败: ${error.message}`;
+            }
+        }
+        
+        function testCompatibility() {
+            const result = document.getElementById('compat-result');
+            result.style.display = 'block';
+            
+            try {
+                const checks = [];
+                
+                // Check if Logger is available
+                checks.push({
+                    name: 'Logger 对象存在',
+                    pass: typeof Logger !== 'undefined',
+                    value: typeof Logger
+                });
+                
+                // Check if methods exist
+                const methods = ['info', 'warn', 'error', 'debug', 'success', 'trace', 'setLevel'];
+                methods.forEach(method => {
+                    checks.push({
+                        name: `Logger.${method} 方法存在`,
+                        pass: typeof Logger[method] === 'function',
+                        value: typeof Logger[method]
+                    });
+                });
+                
+                // Check if window.Logger exists (backward compatibility)
+                checks.push({
+                    name: 'window.Logger 存在（向后兼容）',
+                    pass: typeof window.Logger !== 'undefined',
+                    value: typeof window.Logger
+                });
+                
+                // Check if quick access functions exist
+                const quickAccess = ['log', 'logError', 'logWarn', 'logDebug', 'logSuccess'];
+                quickAccess.forEach(func => {
+                    checks.push({
+                        name: `window.${func} 存在（快速访问）`,
+                        pass: typeof window[func] === 'function',
+                        value: typeof window[func]
+                    });
+                });
+                
+                // Display results
+                let html = '<strong>兼容性检查结果：</strong><br><br>';
+                let allPass = true;
+                checks.forEach(check => {
+                    const status = check.pass ? '✅' : '❌';
+                    const color = check.pass ? '#2e7d32' : '#c62828';
+                    html += `${status} <span style="color: ${color};">${check.name}</span> (${check.value})<br>`;
+                    if (!check.pass) allPass = false;
+                });
+                
+                result.className = allPass ? 'result success' : 'result error';
+                result.innerHTML = html + (allPass ? '<br>✅ 所有兼容性检查通过！' : '<br>❌ 部分检查失败，请检查 Logger 模块。');
+            } catch (error) {
+                result.className = 'result error';
+                result.innerHTML = `❌ 测试失败: ${error.message}`;
+            }
+        }
+        
+        // Auto-run compatibility test on load
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                testCompatibility();
+            }, 100);
+        });
+    </script>
+</body>
+</html>
+

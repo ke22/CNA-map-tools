@@ -325,10 +325,16 @@
                         <textarea id="news-input" class="textarea-input" 
                                   placeholder="请粘贴新闻文章内容...&#10;&#10;示例：&#10;台北市政府今天宣布新政策。活动在台北市中心举行，坐标 25.0330, 121.5654..."
                                   rows="6" style="width: 100%; font-size: 13px; line-height: 1.5;"></textarea>
-                        <button class="btn-primary" id="analyze-news-btn" style="width: 100%; margin-top: 8px;">
-                            <span class="material-icons" style="font-size: 18px; vertical-align: middle;">auto_awesome</span>
-                            AI 分析新闻
-                        </button>
+                        <div style="display: flex; gap: 8px; margin-top: 8px;">
+                            <button class="btn-primary" id="analyze-news-btn" style="flex: 1;">
+                                <span class="material-icons" style="font-size: 18px; vertical-align: middle;">auto_awesome</span>
+                                AI 分析新闻
+                            </button>
+                            <button class="btn-secondary" id="test-ai-btn" style="flex: 0 0 auto;" title="一键测试：使用预设新闻文本测试 AI 分析功能">
+                                <span class="material-icons" style="font-size: 18px; vertical-align: middle;">play_arrow</span>
+                                测试
+                            </button>
+                        </div>
                         <div id="ai-loading" style="display: none; text-align: center; padding: 12px; color: #757575;">
                             <span class="material-icons" style="animation: spin 1s linear infinite;">refresh</span>
                             正在分析新闻文本...
@@ -601,6 +607,14 @@
     <!-- Configuration -->
     <script src="config.js"></script>
     
+    <!-- Core Modules (load FIRST) -->
+    <script src="js/core/Logger.js"></script>
+    <script src="js/core/EventBus.js"></script>
+    <script src="js/core/StateManager.js"></script>
+    
+    <!-- Feature Modules -->
+    <script src="js/modules/MarkerIconManager.js"></script>
+    
     <!-- Optimization Utilities (load before main app) -->
     <script src="js/utils/debug.js"></script>
     <script src="js/utils/cache.js"></script>
@@ -626,10 +640,10 @@
     <script src="js/app-gadm.js"></script>
     
     <!-- Enhanced Application -->
-    <script src="js/app-enhanced.js"></script>
+    <script src="js/app-enhanced.js?v=35"></script>
     
     <!-- AI Assistant integration -->
-    <script src="js/features/ai-assistant.js"></script>
+    <script src="js/features/ai-assistant.js?v=33"></script>
     
     <!-- Agent-Ready Map Tool -->
     <script src="js/data/specs/schema.js"></script>

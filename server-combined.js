@@ -41,7 +41,7 @@ const url = require('url');
 // Import Gemini proxy functionality
 const geminiProxy = require('./server-gemini-proxy.js');
 
-const PORT = 8000;
+const PORT = process.env.PORT || 3000;
 
 // MIME types for different file extensions
 const mimeTypes = {

@@ -29,6 +29,7 @@ function setupAIAssistant() {
 
     const newsInput = document.getElementById('news-input');
     const analyzeBtn = document.getElementById('analyze-news-btn');
+    const testBtn = document.getElementById('test-ai-btn');
     const loadingDiv = document.getElementById('ai-loading');
     const resultsPreview = document.getElementById('ai-results-preview');
     const resultsContent = document.getElementById('ai-results-content');
@@ -354,6 +355,49 @@ function setupAIAssistant() {
     
     // Analyze button click handler
     analyzeBtn.addEventListener('click', performAnalysis);
+    
+    // Test button click handler - 一键测试功能
+    if (testBtn) {
+        testBtn.addEventListener('click', function() {
+            // 预设测试文本（亚塞拜然和亚美尼亚的新闻）
+            const testNewsText = `（中央社亞塞拜然首都巴庫13日綜合外電報導）高加索地區鄰國亞塞拜然和亞美尼亞今天表示，他們為了解決彼此間數十年來衝突所進行的談判已經完成，雙方對於1份條約的內文已達成同意，就待簽署。
+
+法新社報導，包括俄羅斯、歐洲聯盟（EU）、美國和土耳其都在爭奪高加索地區（Caucasus）的影響力。若是亞塞拜然與亞美尼亞能夠達成協議讓關係正常化，將是區域情勢的一大突破。
+
+雙亞為了爭奪現於亞塞拜然境內的亞美尼亞人聚居地區納戈爾諾．卡拉巴赫（Nagorno-Karabakh，簡稱納卡區），曾分別在蘇聯時代末期及2020年進行過戰爭。亞塞拜然在2023年9月發動24小時閃電攻擊後，奪下整個納卡區。
+
+亞塞拜然與亞美尼亞先前曾數度表示，雙方達成結束彼此長期衝突的全面性和平協議指日可待。但兩國先前的談判都未能就任何協議草案達成共識。
+
+不過，亞塞拜然外交部長拜拉莫夫（Jeyhun Bayramov）今天對媒體記者表示：「針對（我方）與亞美尼亞的和平協議內文，相關談判程序已完成。...有關先前未達共識的2條款，亞美尼亞已接受亞塞拜然的提議。」
+
+亞美尼亞外交部隨後也發布聲明證實消息，表示「協議草案的談判已經完成」，「和平協議已準備好簽署」。
+
+透過 Google News
+追蹤中央社
+亞美尼亞總理帕辛揚（Nikol Pashinyan）對這起「重大事件」予以喝采。他並告訴媒體記者，亞美尼亞「已準備好對於和平協議的簽署地點和時間展開討論」。
+
+儘管如此，亞塞拜然單方面發表聲明而非與亞美尼亞發表聯合聲明，遭到葉里凡（Yerevan，亞美尼亞首都）批評，暗示彼此間仍存在緊張關係。（譯者：林沂鋒/核稿：張正芊）1140314`;
+
+            // 填充测试文本到输入框
+            if (newsInput) {
+                newsInput.value = testNewsText;
+                // 滚动到输入框
+                newsInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                // 聚焦输入框
+                newsInput.focus();
+                // 将光标移到文本末尾
+                newsInput.setSelectionRange(testNewsText.length, testNewsText.length);
+            }
+            
+            // 显示提示
+            showToast('已載入測試文本，開始分析...', 'info', 2000);
+            
+            // 延迟一小段时间后自动触发分析（让用户看到文本已填充）
+            setTimeout(() => {
+                performAnalysis();
+            }, 500);
+        });
+    }
     
     // Enter key support for textarea
     if (newsInput) {
@@ -938,9 +982,18 @@ async function applyAIResultsToMap(results) {
                     const colorToUse = area.presetColor || area.suggestedColor || '#6CA7A1';
                     
                     try {
+                        // AI分析应用时，强制使用填充模式（fill），而不是outline
+                        // 临时设置boundaryMode为'fill'，确保使用填充模式
+                        const originalBoundaryMode = appState.boundaryMode;
+                        appState.boundaryMode = 'fill';
+                        
                         // Try to apply color - createAreaLayer will handle source loading internally
                         // No need to wait for source to load first
                         await applyColorToArea(areaId, area.name, area.type, colorToUse);
+                        
+                        // 恢复原来的boundaryMode（如果需要）
+                        // appState.boundaryMode = originalBoundaryMode;
+                        
                         areasApplied++;
                         // Small delay between area applications to allow processing
                         await new Promise(resolve => setTimeout(resolve, 500));
@@ -1088,11 +1141,45 @@ async function applyAIResultsToMap(results) {
 
     console.log(`✅ Applied ${areasApplied} areas and ${markersApplied} markers to map`);
     
+    // Update Chinese labels after all areas are applied
+    if (areasApplied > 0) {
+        console.log(`🔍 Checking for updateCustomChineseLabels function...`);
+        console.log(`   - typeof window.updateCustomChineseLabels: ${typeof window.updateCustomChineseLabels}`);
+        console.log(`   - window.updateCustomChineseLabels exists: ${!!window.updateCustomChineseLabels}`);
+        
+        if (typeof window.updateCustomChineseLabels === 'function') {
+            setTimeout(() => {
+                console.log(`🔄 Calling updateCustomChineseLabels()...`);
+                try {
+                    window.updateCustomChineseLabels();
+                    console.log('✅ Updated Chinese labels after AI analysis');
+                } catch (error) {
+                    console.error('❌ Error calling updateCustomChineseLabels:', error);
+                }
+            }, 1500); // Wait for all areas to be fully rendered (increased to 1.5s)
+        } else {
+            console.warn('⚠️ updateCustomChineseLabels function not found on window object');
+        }
+    }
+    
     // Zoom to all applied results (areas and markers)
-    if (areasApplied > 0 || markersApplied > 0) {
+    // Always try to zoom if we have any results, even if areasApplied is 0
+    // (markers might have been applied, or we should zoom to mapDesign suggestions)
+    if (areasApplied > 0 || markersApplied > 0 || (results.mapDesign && results.mapDesign.suggestedCenter)) {
         try {
             const bounds = new mapboxgl.LngLatBounds();
             let hasBounds = false;
+            
+            // If we have mapDesign suggestions but no areas/markers, use suggested center
+            if ((areasApplied === 0 && markersApplied === 0) && results.mapDesign && results.mapDesign.suggestedCenter) {
+                console.log('📍 Using mapDesign suggested center for zoom');
+                appState.map.flyTo({
+                    center: results.mapDesign.suggestedCenter,
+                    zoom: results.mapDesign.suggestedZoom || 6,
+                    duration: 2000
+                });
+                return; // Early return after zooming to suggested center
+            }
             
             // Helper function to extend bounds with geometry coordinates
             const extendBoundsWithGeometry = (geometry) => {

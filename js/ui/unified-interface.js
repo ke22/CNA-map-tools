@@ -1211,6 +1211,15 @@ function showColorPickerPopupForArea(point, areaId, areaName, areaType, currentC
         }
     };
     
+    // ESC 键取消
+    const escHandler = (e) => {
+        if (e.key === 'Escape' && popup.style.display !== 'none') {
+            cancelHandler();
+            document.removeEventListener('keydown', escHandler);
+        }
+    };
+    document.addEventListener('keydown', escHandler);
+    
     if (applyBtn) {
         const newApplyBtn = applyBtn.cloneNode(true);
         applyBtn.parentNode.replaceChild(newApplyBtn, applyBtn);
