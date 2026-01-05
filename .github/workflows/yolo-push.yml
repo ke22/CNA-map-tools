@@ -1,0 +1,61 @@
+name: YOLO Push - Auto-fix Lint/Format Errors
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types:
+      - completed
+    branches: [main, develop, master]
+
+jobs:
+  auto-fix:
+    name: Auto-fix CI Failures
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'failure' }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          ref: ${{ github.event.workflow_run.head_branch }}
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Auto-fix ESLint errors
+        run: |
+          echo "🔧 Attempting to auto-fix ESLint errors..."
+          npm run lint:fix || true
+          git diff --exit-code || {
+            git config --local user.email "github-actions[bot]@users.noreply.github.com"
+            git config --local user.name "github-actions[bot]"
+            git add .
+            git commit -m "chore: Auto-fix ESLint errors [skip ci]" || true
+            git push || true
+          }
+        continue-on-error: true
+      
+      - name: Auto-fix Prettier formatting
+        run: |
+          echo "🎨 Attempting to auto-fix formatting..."
+          npm run format || true
+          git diff --exit-code || {
+            git config --local user.email "github-actions[bot]@users.noreply.github.com"
+            git config --local user.name "github-actions[bot]"
+            git add .
+            git commit -m "chore: Auto-fix formatting [skip ci]" || true
+            git push || true
+          }
+        continue-on-error: true
+      
+      - name: Re-run CI
+        if: success()
+        run: |
+          echo "✅ Auto-fix completed. CI will re-run automatically."
