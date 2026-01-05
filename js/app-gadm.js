@@ -254,15 +254,10 @@ function createGADMVisibleLayer(areaType) {
         : (areaType === 'country' ? 0.1 : 0.15); // Thinner default
     const maxWidth = areaType === 'country' ? 0.2 : 0.3; // Country boundaries are thinner (reduced)
     
-    // Set visibility based on boundary line toggle (separate for country and admin)
-    let visibility = 'none';
-    if (areaType === 'country') {
-        // Country boundaries: show when country boundary toggle is on
-        visibility = appState.countryBoundaryVisible ? 'visible' : 'none';
-    } else if (areaType === 'state' || areaType === 'city') {
-        // Admin boundaries: show state boundaries when admin boundary toggle is on
-        visibility = (areaType === 'state' && appState.adminBoundaryVisible) ? 'visible' : 'none';
-    }
+    // CRITICAL FIX: For click detection, administrative boundary layers must always be visible when active
+    // The boundary line visibility toggle should only control visual appearance (opacity), not clickability
+    // Set visibility - always visible for click detection (opacity controlled by toggle)
+    let visibility = 'visible'; // Always visible for click detection
     
     // Insert boundary line AFTER all fill layers (boundary lines should be on top of fills)
     // Use findLastFillLayer function from app-enhanced.js if available
@@ -481,7 +476,22 @@ async function loadBoundarySourceForTypeGADM(areaType, createVisibleLayer = fals
         }
         
     } catch (error) {
-        console.error(`Failed to load GADM source for ${areaType}:`, error);
+        // Only log detailed error in dev mode
+        const isDevMode = window.location.hostname === 'localhost' || 
+                         window.location.hostname === '127.0.0.1' ||
+                         window.location.hostname === '';
+        
+        if (isDevMode) {
+            console.error(`Failed to load GADM source for ${areaType}:`, error);
+        }
+        
+        // Show user-friendly error message
+        if (typeof showToast === 'function') {
+            const areaTypeName = areaType === 'country' ? '國家' : 
+                                areaType === 'state' ? '州/省' : '城市';
+            showToast(`無法載入 ${areaTypeName} 邊界數據。請檢查數據文件是否存在。`, 'error', 5000);
+        }
+        
         throw error;
     }
 }

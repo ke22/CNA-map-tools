@@ -463,13 +463,12 @@ ${newsText}
 
         const newsTextLower = newsText.toLowerCase();
         const noisePatterns = [
-            // 受訪/消息來源模式
+            // 受訪/消息來源模式（排除協議簽署方）
             /據.*?報道/gi,
-            /.*?表示/gi,
             /.*?透露/gi,
             /.*?稱/gi,
             /.*?發言人/gi,
-            /.*?在.*?國表示/gi,
+            /.*?在.*?國表示/gi,  // 但排除"XX和XX表示"（協議簽署方）
             /.*?機構在.*?國/gi,
             // 記者/報道模式
             /記者.*?從.*?國/gi,
@@ -571,7 +570,28 @@ ${newsText}
                 }
             }
 
+            // 優先檢測：是否為協議簽署方（事件主角）
+            // 這個檢測必須在其他過濾之前進行，確保事件主角不會被過濾
+            const isSignatoryPattern = /.*?和.*?表示/gi.test(evidence) || 
+                                      /.*?與.*?簽署/gi.test(evidence) ||
+                                      /.*?和.*?簽署/gi.test(evidence) ||
+                                      /.*?雙方.*?簽署/gi.test(evidence) ||
+                                      /.*?兩國.*?簽署/gi.test(evidence) ||
+                                      /.*?達成.*?協議/gi.test(evidence) ||
+                                      /.*?國.*?和.*?國.*?表示/gi.test(evidence) ||
+                                      /.*?國.*?與.*?國.*?簽署/gi.test(evidence) ||
+                                      // 檢測目標名稱是否在協議簽署相關的上下文中
+                                      (evidence.includes('簽署') && (evidence.includes('協議') || evidence.includes('條約'))) ||
+                                      (evidence.includes('達成') && evidence.includes('協議'));
+            
+            // 如果是協議簽署方（事件主角），優先保留，跳過所有噪音過濾
+            if (isSignatoryPattern) {
+                console.log(`✅ [GeoExtractor] 保留協議簽署方（事件主角）：${target.name} (證據: ${evidence.substring(0, 80)}...)`);
+                return true; // 直接返回 true，不進行後續過濾
+            }
+
             // 檢查是否為新聞發稿地點（中央社XX報導等）
+            // 但如果是協議簽署方，已經在上面返回了，不會執行到這裡
             const newsSourcePatterns = [
                 /中央社.*?報導/gi,
                 /.*?綜合外電報導/gi,
@@ -621,18 +641,34 @@ ${newsText}
             }
 
             // 檢查證據的上下文（在原文中的位置）
+            // 但如果是協議簽署方，已經在上面返回了，不會執行到這裡
             if (target.evidence_start >= 0) {
                 // 檢查證據前後的上下文，看是否在引語或間接引用中
                 const contextStart = Math.max(0, target.evidence_start - 50);
                 const contextEnd = Math.min(newsText.length, target.evidence_end + 50);
                 const context = newsTextLower.substring(contextStart, contextEnd);
                 
+                // 檢查上下文是否包含協議簽署相關內容（如果是，保留）
+                const signatoryContextPatterns = [
+                    /.*?和.*?表示/gi,
+                    /.*?與.*?簽署/gi,
+                    /.*?達成.*?協議/gi,
+                    /.*?雙方.*?簽署/gi
+                ];
+                
+                const hasSignatoryContext = signatoryContextPatterns.some(pattern => pattern.test(context));
+                if (hasSignatoryContext) {
+                    console.log(`✅ [GeoExtractor] 保留（上下文包含協議簽署）：${target.name}`);
+                    return true; // 如果是協議簽署相關上下文，保留
+                }
+                
                 // 檢查上下文是否包含噪音指示詞
                 const contextNoiseIndicators = [
-                    '據', '稱', '表示', '透露', '報道', '報導', '記者', '發言人',
+                    '據', '稱', '透露', '報道', '報導', '記者', '發言人',
                     '引述', '援引', '轉述', '類似', '相比', '鄰近', '會晤', '總統期間',
-                    '斡旋', '協助', '調解', '促成', '簽署儀式', '簽署協議',
+                    '斡旋', '協助', '調解', '促成', '簽署儀式',
                     '中央社', '綜合外電', '白宮', '華盛頓'
+                    // 注意：移除了'表示'，因為"XX和XX表示"是協議簽署方的標誌
                 ];
                 
                 for (const indicator of contextNoiseIndicators) {

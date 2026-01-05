@@ -126,40 +126,97 @@ function createAppleMarker(color = '#007AFF', shape = 'pin', size = 24) {
     const shapeConfig = iconShapes[shape];
     
     if (shapeConfig && typeof shapeConfig === 'object' && shapeConfig.svgPath) {
-        // Use SVG icon from file - load and replace color
-        const iconImg = document.createElement('img');
-        iconImg.style.width = size + 'px';
-        iconImg.style.height = size + 'px';
-        iconImg.style.maxWidth = size + 'px';
-        iconImg.style.maxHeight = size + 'px';
-        iconImg.style.objectFit = 'contain';
-        iconImg.style.display = 'block';
-        iconImg.style.userSelect = 'none';
-        iconImg.style.pointerEvents = 'none';
-        iconImg.style.flexShrink = '0';
+        // Check if we have a cached SVG template
+        if (!window._svgIconCache) {
+            window._svgIconCache = {};
+        }
         
-        // Load SVG and replace fill color
-        fetch(shapeConfig.svgPath)
-            .then(response => response.text())
-            .then(svgText => {
-                // Replace fill color in SVG (#e3e3e3 or #E3E3E3 -> user color)
-                // Replace in fill attributes: fill="#e3e3e3" -> fill="color"
-                let svgString = svgText.replace(/fill="#e3e3e3"/gi, `fill="${color}"`);
-                // Also replace standalone color values (for fill attribute values)
-                svgString = svgString.replace(/#e3e3e3/gi, color);
-                // Create a blob URL
-                const blob = new Blob([svgString], { type: 'image/svg+xml' });
-                const url = URL.createObjectURL(blob);
-                iconImg.src = url;
-            })
-            .catch(err => {
-                console.warn('Failed to load SVG icon:', err);
-                // Fallback to original path
-                iconImg.src = shapeConfig.svgPath;
-            });
+        // Try to load from cache first
+        const cacheKey = shapeConfig.svgPath;
+        let svgTemplate = window._svgIconCache[cacheKey];
         
-        el.appendChild(iconImg);
+        if (svgTemplate) {
+            // Use cached template
+            createIconFromTemplate(el, svgTemplate, color, size);
+        } else {
+            // Load SVG and cache it
+            const iconImg = document.createElement('img');
+            iconImg.style.width = size + 'px';
+            iconImg.style.height = size + 'px';
+            iconImg.style.maxWidth = size + 'px';
+            iconImg.style.maxHeight = size + 'px';
+            iconImg.style.objectFit = 'contain';
+            iconImg.style.display = 'block';
+            iconImg.style.userSelect = 'none';
+            iconImg.style.pointerEvents = 'none';
+            iconImg.style.flexShrink = '0';
+            
+            // Try to load SVG
+            fetch(shapeConfig.svgPath)
+                .then(response => {
+                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                    return response.text();
+                })
+                .then(svgText => {
+                    // Cache the template
+                    window._svgIconCache[cacheKey] = svgText;
+                    // Create icon from template
+                    createIconFromTemplate(el, svgText, color, size);
+                })
+                .catch(err => {
+                    // Only log in development mode
+                    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+                        console.warn('Failed to load SVG icon:', shapeConfig.svgPath, err.message);
+                    }
+                    // Fallback to CSS-based icon
+                    createFallbackIcon(el, shape, color, size);
+                });
+            
+            el.appendChild(iconImg);
+        }
+        
         return el;
+    }
+    
+    // Helper function to create icon from SVG template
+    function createIconFromTemplate(container, svgTemplate, color, size) {
+        // Replace fill color in SVG (#e3e3e3 or #E3E3E3 -> user color)
+        let svgString = svgTemplate.replace(/fill="#e3e3e3"/gi, `fill="${color}"`);
+        svgString = svgString.replace(/#e3e3e3/gi, color);
+        
+        // Create inline SVG element instead of img with blob URL
+        const svgEl = document.createElement('div');
+        svgEl.innerHTML = svgString;
+        const svg = svgEl.querySelector('svg');
+        if (svg) {
+            svg.style.width = size + 'px';
+            svg.style.height = size + 'px';
+            svg.style.display = 'block';
+            svg.style.pointerEvents = 'none';
+        }
+        container.innerHTML = '';
+        container.appendChild(svgEl.firstChild);
+    }
+    
+    // Helper function to create fallback icon using CSS
+    function createFallbackIcon(container, shape, color, size) {
+        container.innerHTML = '';
+        if (shape === 'pin') {
+            container.style.background = `radial-gradient(circle at 50% 50%, ${color} 0%, ${color} 60%, ${darkenColor(color, 20)} 100%)`;
+            container.style.borderRadius = '50% 50% 50% 0';
+            container.style.transform = 'rotate(-45deg)';
+        } else if (shape === 'circle') {
+            container.style.background = color;
+            container.style.borderRadius = '50%';
+        } else if (shape === 'square') {
+            container.style.background = color;
+            container.style.borderRadius = '4px';
+        } else {
+            // Default circle
+            container.style.background = color;
+            container.style.borderRadius = '50%';
+        }
+        container.style.boxShadow = '0 2px 4px rgba(0,0,0,0.2)';
     }
     
     // Legacy Apple-style pin shape (fallback)
