@@ -1,0 +1,23 @@
+#!/bin/bash
+# 设置 Git Hook（用于主仓库，不是 worktree）
+
+echo "📝 Git Hook 设置说明"
+echo ""
+echo "由于你使用的是 Git worktree，Git hook 需要设置在主仓库："
+echo ""
+echo "主仓库位置: /Users/yulincho/Documents/01_Github/map"
+echo ""
+echo "手动设置步骤："
+echo "1. 在主仓库创建 hook:"
+echo "   mkdir -p .git/hooks"
+echo ""
+echo "2. 复制 hook 文件:"
+echo "   cp scripts/post-commit-hook-template .git/hooks/post-commit"
+echo ""
+echo "3. 设置权限:"
+echo "   chmod +x .git/hooks/post-commit"
+echo ""
+echo "💡 推荐：使用 GitHub Actions（已自动启用）"
+echo "   - 不需要本地配置"
+echo "   - 自动推送到远程"
+echo "   - 完全自动化"

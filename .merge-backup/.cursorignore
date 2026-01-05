@@ -1,0 +1,59 @@
+# Large GeoJSON and GADM data files (too large for indexing)
+data/gadm/*.gpkg
+data/gadm/*.geojson
+data/gadm/*.mbtiles
+data/gadm/*.geojsonl
+data/gadm/tiles/
+data/gadm/optimized/*.geojson
+
+# Node modules (already indexed by package.json)
+node_modules/
+
+# Build artifacts and generated files
+dist/
+build/
+*.min.js
+*.bundle.js
+
+# Documentation (optional - remove if you want docs indexed)
+docs/
+
+# Large test data files
+data/boundaries/
+data/countries/
+
+# Logs and temporary files
+*.log
+*.tmp
+*.temp
+server.log
+
+# Old/archived versions
+v0/
+2023Maps/
+
+# IDE and OS files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Environment and secrets
+.env
+.env.local
+*.key
+*.pem
+secrets/
+
+# Package lock files (package.json is sufficient)
+package-lock.json
+yarn.lock
+
+# Backup files
+*.backup
+*.bak
+*~
+
+
