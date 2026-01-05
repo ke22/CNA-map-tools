@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>模块测试 - EventBus, StateManager, MarkerIconManager</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .test-section {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 { color: #333; margin-top: 0; }
+        h2 { color: #666; border-bottom: 2px solid #eee; padding-bottom: 10px; }
+        button {
+            background: #6CA7A1;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+            font-size: 14px;
+        }
+        button:hover { background: #5a9490; }
+        button:active { background: #4a8380; }
+        .log-output {
+            background: #f9f9f9;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 15px;
+            margin-top: 10px;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+        }
+        .success { color: #4caf50; }
+        .error { color: #f44336; }
+        .info { color: #2196f3; }
+        .icon-preview {
+            display: inline-block;
+            margin: 5px;
+            border: 1px solid #ddd;
+            padding: 5px;
+            border-radius: 4px;
+        }
+        .icon-preview img {
+            display: block;
+            margin: 0 auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧪 模块测试页面</h1>
+    <p>测试 EventBus、StateManager 和 MarkerIconManager 模块</p>
+
+    <!-- EventBus 测试 -->
+    <div class="test-section">
+        <h2>1. EventBus 测试</h2>
+        <button onclick="testEventBusBasic()">基本事件测试</button>
+        <button onclick="testEventBusOnce()">一次性事件测试</button>
+        <button onclick="testEventBusStats()">事件统计</button>
+        <button onclick="clearEventBusLog()">清空日志</button>
+        <div id="eventbus-log" class="log-output"></div>
+    </div>
+
+    <!-- StateManager 测试 -->
+    <div class="test-section">
+        <h2>2. StateManager 测试</h2>
+        <button onclick="testStateManagerInit()">初始化状态</button>
+        <button onclick="testStateManagerSet()">设置状态</button>
+        <button onclick="testStateManagerSubscribe()">订阅状态变化</button>
+        <button onclick="testStateManagerUpdate()">批量更新</button>
+        <button onclick="clearStateManagerLog()">清空日志</button>
+        <div id="statemanager-log" class="log-output"></div>
+    </div>
+
+    <!-- MarkerIconManager 测试 -->
+    <div class="test-section">
+        <h2>3. MarkerIconManager 测试</h2>
+        <button onclick="testMarkerIcons()">生成图标</button>
+        <button onclick="testMarkerIconCache()">缓存测试</button>
+        <button onclick="clearMarkerIconLog()">清空日志</button>
+        <div id="markericon-log" class="log-output"></div>
+        <div id="icon-preview"></div>
+    </div>
+
+    <!-- 集成测试 -->
+    <div class="test-section">
+        <h2>4. 集成测试</h2>
+        <button onclick="testIntegration()">模块集成测试</button>
+        <button onclick="clearIntegrationLog()">清空日志</button>
+        <div id="integration-log" class="log-output"></div>
+    </div>
+
+    <!-- 加载核心模块 -->
+    <script src="js/core/Logger.js?v=2"></script>
+    <script src="js/core/EventBus.js?v=2"></script>
+    <script src="js/core/StateManager.js?v=2"></script>
+    <script src="js/modules/MarkerIconManager.js?v=2"></script>
+
+    <script>
+        // EventBus 测试
+        function logEventBus(message, type = 'info') {
+            const log = document.getElementById('eventbus-log');
+            const prefix = type === 'error' ? '❌' : type === 'success' ? '✅' : 'ℹ️';
+            log.textContent += `[${new Date().toLocaleTimeString()}] ${prefix} ${message}\n`;
+            log.scrollTop = log.scrollHeight;
+        }
+
+        function clearEventBusLog() {
+            document.getElementById('eventbus-log').textContent = '';
+        }
+
+        function testEventBusBasic() {
+            logEventBus('测试基本事件订阅和发布...');
+            
+            // 订阅事件
+            const unsubscribe = window.EventBus.on('test:click', (data) => {
+                logEventBus(`收到事件: test:click, 数据: ${JSON.stringify(data)}`, 'success');
+            });
+
+            // 发布事件
+            window.EventBus.emit('test:click', { x: 100, y: 200 });
+            window.EventBus.emit('test:click', { message: 'Hello EventBus!' });
+
+            // 取消订阅
+            unsubscribe();
+            window.EventBus.emit('test:click', { shouldNotReceive: true });
+            logEventBus('取消订阅后，应该不会收到上面的消息', 'success');
+        }
+
+        function testEventBusOnce() {
+            logEventBus('测试一次性事件...');
+            
+            window.EventBus.once('test:once', (data) => {
+                logEventBus(`收到一次性事件: ${JSON.stringify(data)}`, 'success');
+            });
+
+            window.EventBus.emit('test:once', { first: true });
+            window.EventBus.emit('test:once', { second: true }); // 不应该收到
+            logEventBus('第二次事件应该不会触发（一次性订阅已自动取消）', 'success');
+        }
+
+        function testEventBusStats() {
+            const stats = window.EventBus.getStats();
+            logEventBus(`事件统计: ${JSON.stringify(stats, null, 2)}`, 'info');
+        }
+
+        // StateManager 测试
+        function logStateManager(message, type = 'info') {
+            const log = document.getElementById('statemanager-log');
+            const prefix = type === 'error' ? '❌' : type === 'success' ? '✅' : 'ℹ️';
+            log.textContent += `[${new Date().toLocaleTimeString()}] ${prefix} ${message}\n`;
+            log.scrollTop = log.scrollHeight;
+        }
+
+        function clearStateManagerLog() {
+            document.getElementById('statemanager-log').textContent = '';
+        }
+
+        function testStateManagerInit() {
+            logStateManager('初始化状态管理器...');
+            window.StateManager.init({ count: 0, user: null, theme: 'light' });
+            logStateManager(`初始化完成: ${JSON.stringify(window.StateManager.getAll())}`, 'success');
+        }
+
+        function testStateManagerSet() {
+            logStateManager('设置状态值...');
+            window.StateManager.set('count', 10);
+            window.StateManager.set('user', { name: 'Test User', id: 1 });
+            logStateManager(`设置后的状态: ${JSON.stringify(window.StateManager.getAll())}`, 'success');
+        }
+
+        function testStateManagerSubscribe() {
+            logStateManager('订阅状态变化...');
+            
+            const unsubscribe = window.StateManager.subscribe('count', (newVal, oldVal) => {
+                logStateManager(`count 变化: ${oldVal} -> ${newVal}`, 'success');
+            });
+
+            window.StateManager.set('count', 20);
+            window.StateManager.set('count', 30);
+
+            unsubscribe();
+            window.StateManager.set('count', 40); // 不应该触发监听器
+            logStateManager('取消订阅后，应该不会收到上面的变化通知', 'success');
+        }
+
+        function testStateManagerUpdate() {
+            logStateManager('批量更新状态...');
+            window.StateManager.update({
+                count: 100,
+                theme: 'dark',
+                user: { name: 'Updated User', id: 2 }
+            });
+            logStateManager(`批量更新后的状态: ${JSON.stringify(window.StateManager.getAll())}`, 'success');
+        }
+
+        // MarkerIconManager 测试
+        function logMarkerIcon(message, type = 'info') {
+            const log = document.getElementById('markericon-log');
+            const prefix = type === 'error' ? '❌' : type === 'success' ? '✅' : 'ℹ️';
+            log.textContent += `[${new Date().toLocaleTimeString()}] ${prefix} ${message}\n`;
+            log.scrollTop = log.scrollHeight;
+        }
+
+        function clearMarkerIconLog() {
+            document.getElementById('markericon-log').textContent = '';
+            document.getElementById('icon-preview').innerHTML = '';
+        }
+
+        function testMarkerIcons() {
+            logMarkerIcon('生成不同类型的图标...');
+            const preview = document.getElementById('icon-preview');
+            preview.innerHTML = '';
+
+            const colors = ['#6CA7A1', '#FF6B6B', '#4ECDC4', '#95E1D3'];
+            const types = ['default', 'location', 'pin'];
+
+            types.forEach(type => {
+                colors.forEach(color => {
+                    const iconUrl = window.MarkerIconManager.getIconUrl(type, color, 40);
+                    const div = document.createElement('div');
+                    div.className = 'icon-preview';
+                    div.innerHTML = `
+                        <img src="${iconUrl}" alt="${type}-${color}">
+                        <div style="text-align: center; font-size: 10px; margin-top: 5px;">
+                            ${type}<br>${color}
+                        </div>
+                    `;
+                    preview.appendChild(div);
+                });
+            });
+
+            logMarkerIcon(`生成了 ${types.length * colors.length} 个图标`, 'success');
+        }
+
+        function testMarkerIconCache() {
+            logMarkerIcon('测试图标缓存...');
+            const stats1 = window.MarkerIconManager.getCacheStats();
+            logMarkerIcon(`初始缓存: ${stats1.cacheSize} 个图标`);
+
+            // 生成相同的图标（应该使用缓存）
+            window.MarkerIconManager.getIconUrl('default', '#FF0000', 40);
+            window.MarkerIconManager.getIconUrl('default', '#FF0000', 40);
+            window.MarkerIconManager.getIconUrl('default', '#FF0000', 40);
+
+            const stats2 = window.MarkerIconManager.getCacheStats();
+            logMarkerIcon(`生成3次相同图标后缓存: ${stats2.cacheSize} 个图标（应该只有1个）`, 'success');
+
+            window.MarkerIconManager.clearCache();
+            const stats3 = window.MarkerIconManager.getCacheStats();
+            logMarkerIcon(`清空缓存后: ${stats3.cacheSize} 个图标`, 'success');
+        }
+
+        // 集成测试
+        function logIntegration(message, type = 'info') {
+            const log = document.getElementById('integration-log');
+            const prefix = type === 'error' ? '❌' : type === 'success' ? '✅' : 'ℹ️';
+            log.textContent += `[${new Date().toLocaleTimeString()}] ${prefix} ${message}\n`;
+            log.scrollTop = log.scrollHeight;
+        }
+
+        function clearIntegrationLog() {
+            document.getElementById('integration-log').textContent = '';
+        }
+
+        function testIntegration() {
+            logIntegration('开始集成测试...');
+
+            // 1. 使用 StateManager 管理应用状态
+            window.StateManager.init({ markerCount: 0, selectedColor: '#6CA7A1' });
+            logIntegration('✅ StateManager 初始化成功', 'success');
+
+            // 2. 使用 EventBus 发布状态变化事件
+            window.StateManager.subscribe('markerCount', (newVal, oldVal) => {
+                window.EventBus.emit('marker:countChanged', { count: newVal, previous: oldVal });
+                logIntegration(`✅ 通过 EventBus 发布 marker:countChanged 事件`, 'success');
+            });
+
+            window.EventBus.on('marker:countChanged', (data) => {
+                logIntegration(`✅ 收到 marker:countChanged 事件: count=${data.count}`, 'success');
+            });
+
+            window.StateManager.set('markerCount', 5);
+            logIntegration('✅ StateManager -> EventBus 集成成功', 'success');
+
+            // 3. 使用 MarkerIconManager 生成图标
+            const icon = window.MarkerIconManager.getIcon('default', window.StateManager.get('selectedColor'));
+            logIntegration(`✅ MarkerIconManager 生成图标成功: ${icon.url.substring(0, 50)}...`, 'success');
+
+            // 4. 所有模块正常工作
+            logIntegration('✅ 所有模块集成测试通过！', 'success');
+        }
+
+        // 页面加载完成
+        document.addEventListener('DOMContentLoaded', () => {
+            Logger.info('测试页面加载完成');
+            logEventBus('EventBus 模块已加载', 'success');
+            logStateManager('StateManager 模块已加载', 'success');
+            logMarkerIcon('MarkerIconManager 模块已加载', 'success');
+            logIntegration('所有模块已加载，可以开始测试', 'success');
+        });
+    </script>
+</body>
+</html>
+

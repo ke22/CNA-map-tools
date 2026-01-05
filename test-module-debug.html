@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Module Debug Test</title>
+</head>
+<body>
+    <h1>Module Debug</h1>
+    <div id="output"></div>
+    
+    <script src="js/core/Logger.js"></script>
+    <script>
+        console.log('After Logger loaded:');
+        console.log('  typeof Logger:', typeof Logger);
+        console.log('  typeof window.Logger:', typeof window.Logger);
+        
+        const output = document.getElementById('output');
+        output.innerHTML += '<p>Logger loaded: ' + (typeof window.Logger) + '</p>';
+    </script>
+    
+    <script src="js/core/EventBus.js"></script>
+    <script>
+        console.log('After EventBus loaded:');
+        console.log('  typeof EventBus:', typeof EventBus);
+        console.log('  typeof window.EventBus:', typeof window.EventBus);
+        console.log('  window.EventBus:', window.EventBus);
+        console.log('  window.EventBus instanceof EventBus:', window.EventBus instanceof window.EventBusClass);
+        
+        output.innerHTML += '<p>EventBus loaded: ' + (typeof window.EventBus) + '</p>';
+        if (window.EventBus) {
+            output.innerHTML += '<p>EventBus.on type: ' + (typeof window.EventBus.on) + '</p>';
+            output.innerHTML += '<p>EventBus.emit type: ' + (typeof window.EventBus.emit) + '</p>';
+        } else {
+            output.innerHTML += '<p style="color:red">EventBus is not defined!</p>';
+        }
+    </script>
+    
+    <script src="js/core/StateManager.js"></script>
+    <script>
+        console.log('After StateManager loaded:');
+        console.log('  typeof window.StateManager:', typeof window.StateManager);
+        console.log('  window.StateManager:', window.StateManager);
+        
+        output.innerHTML += '<p>StateManager loaded: ' + (typeof window.StateManager) + '</p>';
+        if (window.StateManager) {
+            output.innerHTML += '<p>StateManager.init type: ' + (typeof window.StateManager.init) + '</p>';
+        }
+    </script>
+    
+    <script src="js/modules/MarkerIconManager.js"></script>
+    <script>
+        console.log('After MarkerIconManager loaded:');
+        console.log('  typeof window.MarkerIconManager:', typeof window.MarkerIconManager);
+        
+        output.innerHTML += '<p>MarkerIconManager loaded: ' + (typeof window.MarkerIconManager) + '</p>';
+        if (window.MarkerIconManager) {
+            output.innerHTML += '<p>MarkerIconManager.getIconUrl type: ' + (typeof window.MarkerIconManager.getIconUrl) + '</p>';
+        }
+    </script>
+</body>
+</html>
+

@@ -24,7 +24,7 @@ export default defineConfig({
   /* Shared settings for all the projects below */
   use: {
     /* Base URL for the local dev server */
-    baseURL: 'http://localhost:8080',
+    baseURL: 'http://localhost:8000',
     /* Collect trace on failure */
     trace: 'on-first-retry',
     /* Screenshot on failure */
@@ -43,11 +43,11 @@ export default defineConfig({
     },
   ],
 
-  /* Run local dev server before starting the tests */
+  /* Use existing server on port 8000 (server-combined.js with GADM support) */
   webServer: {
-    command: 'npx live-server --port=8080 --no-browser',
-    url: 'http://localhost:8080',
-    reuseExistingServer: !process.env.CI,
+    command: 'node server-combined.js',
+    url: 'http://localhost:8000',
+    reuseExistingServer: true,
     timeout: 30000,
   },
 });

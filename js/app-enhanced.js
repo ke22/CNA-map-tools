@@ -9,8 +9,13 @@
 
 // Prevent duplicate initialization
 if (typeof window.__MAP_APP_INITIALIZED__ !== 'undefined') {
-    console.error('❌ app-enhanced.js 已被加载，检测到重复的 script 标签！');
-    console.error('请检查 HTML 文件中是否有重复的 <script src="js/app-enhanced.js"> 标签');
+    if (typeof Logger !== 'undefined') {
+        Logger.error('app-enhanced.js 已被加载，检测到重复的 script 标签！');
+        Logger.error('请检查 HTML 文件中是否有重复的 <script src="js/app-enhanced.js"> 标签');
+    } else {
+        console.error('❌ app-enhanced.js 已被加载，检测到重复的 script 标签！');
+        console.error('请检查 HTML 文件中是否有重复的 <script src="js/app-enhanced.js"> 标签');
+    }
     throw new Error('app-enhanced.js 已被加载，请检查是否有重复的 script 标签');
 }
 window.__MAP_APP_INITIALIZED__ = true;
@@ -336,7 +341,11 @@ function initializeMap() {
     appState.map.on('error', function (e) {
         // Only log if it's not a layer insertion error (common and harmless)
         if (e.error && e.error.message && !e.error.message.includes('layer') && !e.error.message.includes('before')) {
-            console.error('Map error:', e.error.message);
+            if (typeof Logger !== 'undefined') {
+                Logger.error('Map error', e.error.message);
+            } else {
+                console.error('Map error:', e.error.message);
+            }
         }
     });
 }
@@ -384,15 +393,27 @@ async function loadBoundarySourceForType(areaType, createVisibleLayer = false) {
     
     // Use GADM for all boundary types (country, state, city)
     if (window.GADM_LOADER) {
-        console.log(`🔄 Using GADM data for ${areaType}`);
+        if (typeof Logger !== 'undefined') {
+            Logger.info(`Using GADM data for ${areaType}`);
+        } else {
+            console.log(`🔄 Using GADM data for ${areaType}`);
+        }
         try {
             await window.GADM_LOADER.loadBoundarySourceForType(areaType, createVisibleLayer);
-            console.log(`✅ Successfully loaded GADM data for ${areaType}`);
+            if (typeof Logger !== 'undefined') {
+                Logger.success(`Successfully loaded GADM data for ${areaType}`);
+            } else {
+                console.log(`✅ Successfully loaded GADM data for ${areaType}`);
+            }
             return;
         } catch (error) {
             // Only log in dev mode
             if (IS_DEV_MODE) {
-            console.warn(`⚠️ Failed to load GADM data for ${areaType}:`, error.message);
+                if (typeof Logger !== 'undefined') {
+                    Logger.warn(`Failed to load GADM data for ${areaType}`, error.message);
+                } else {
+                    console.warn(`⚠️ Failed to load GADM data for ${areaType}:`, error.message);
+                }
             }
             
             // Show user-friendly error message
@@ -408,18 +429,30 @@ async function loadBoundarySourceForType(areaType, createVisibleLayer = false) {
             }
         }
     } else {
-        console.warn(`⚠️ GADM_LOADER not available, falling back to Mapbox Boundaries for country only`);
+        if (typeof Logger !== 'undefined') {
+            Logger.warn('GADM_LOADER not available, falling back to Mapbox Boundaries for country only');
+        } else {
+            console.warn(`⚠️ GADM_LOADER not available, falling back to Mapbox Boundaries for country only`);
+        }
     }
     
     // Fallback: Use Mapbox Boundaries (only if GADM is not available or fails for country)
     // This maintains backward compatibility but GADM is preferred
     if (areaType === 'country') {
-        console.log(`⚠️ Falling back to Mapbox Boundaries for country (GADM not available or failed)`);
+        if (typeof Logger !== 'undefined') {
+            Logger.warn('Falling back to Mapbox Boundaries for country (GADM not available or failed)');
+        } else {
+            console.log(`⚠️ Falling back to Mapbox Boundaries for country (GADM not available or failed)`);
+        }
     const sourceId = getSourceIdForType(areaType);
     const sourceUrl = getSourceUrlForType(areaType);
     
     if (!sourceUrl) {
-        console.warn(`No source URL for ${areaType}`);
+        if (typeof Logger !== 'undefined') {
+            Logger.warn(`No source URL for ${areaType}`);
+        } else {
+            console.warn(`No source URL for ${areaType}`);
+        }
         return;
     }
     
@@ -520,8 +553,12 @@ async function loadBoundarySourceForType(areaType, createVisibleLayer = false) {
         
         // Also listen for network errors
             window.addEventListener('error', function (e) {
-            if (e.target && e.target.src && e.target.src.includes(sourceId) && e.target.src.includes('402')) {
-                console.warn(`⚠️ 402 ERROR: ${sourceId} - This source requires paid Mapbox access.`);
+                if (e.target && e.target.src && e.target.src.includes(sourceId) && e.target.src.includes('402')) {
+                    if (typeof Logger !== 'undefined') {
+                        Logger.warn(`402 ERROR: ${sourceId} - This source requires paid Mapbox access.`);
+                    } else {
+                        console.warn(`⚠️ 402 ERROR: ${sourceId} - This source requires paid Mapbox access.`);
+                    }
                 if (appState.sources[sourceTypeKey]) {
                     appState.sources[sourceTypeKey].accessible = false;
                     appState.sources[sourceTypeKey].error = '402 - Payment Required';
@@ -540,7 +577,11 @@ async function loadBoundarySourceForType(areaType, createVisibleLayer = false) {
                 createVisibleBoundaryLayer(areaType);
             }
         } else {
-            console.error(`Error loading source ${sourceId}:`, error);
+            if (typeof Logger !== 'undefined') {
+                Logger.error(`Error loading source ${sourceId}`, error);
+            } else {
+                console.error(`Error loading source ${sourceId}:`, error);
+            }
             appState.sources[sourceTypeKey] = {
                 id: sourceId,
                 loaded: false,
@@ -589,7 +630,11 @@ function createVisibleBoundaryLayer(areaType) {
     }
     
     if (!sourceLayer) {
-        console.warn(`Cannot create layer ${layerId} - source layer unknown for ${areaType}`);
+        if (typeof Logger !== 'undefined') {
+            Logger.warn(`Cannot create layer ${layerId} - source layer unknown for ${areaType}`);
+        } else {
+            console.warn(`Cannot create layer ${layerId} - source layer unknown for ${areaType}`);
+        }
         return false;
     }
     
