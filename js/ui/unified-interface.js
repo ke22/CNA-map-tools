@@ -84,7 +84,12 @@ function setupUnifiedSearch() {
         
         if (clearSearchBtn) clearSearchBtn.style.display = 'block';
         unifiedSearchResults.style.display = 'block';
-        unifiedSearchResults.innerHTML = '<div class="search-result-item">搜索中...</div>';
+        unifiedSearchResults.innerHTML = `
+            <div class="search-result-item" style="display: flex; align-items: center; justify-content: center; padding: 20px; gap: 8px;">
+                <div class="loading-spinner-small" style="width: 16px; height: 16px; border: 2px solid #e0e0e0; border-top-color: #6CA7A1; border-radius: 50%; animation: spin 0.8s linear infinite;"></div>
+                <span style="color: #666; font-size: 13px;">搜索中...</span>
+            </div>
+        `;
         
         // Detect input type and route to appropriate search
         const input = query.trim();
@@ -305,7 +310,7 @@ async function handleUnifiedTextSearch(query) {
     
     // Display results
     if (results.length === 0) {
-        resultsContainer.innerHTML = '<div class="search-result-item">未找到結果</div>';
+        resultsContainer.innerHTML = '<div class="search-result-item" style="padding: 20px; text-align: center; color: #999;">未找到結果</div>';
     } else {
         // Remove duplicates
         const uniqueResults = [];
@@ -323,6 +328,80 @@ async function handleUnifiedTextSearch(query) {
         // Store results data for batch operations
         window.currentSearchResults = displayResults;
         
+        // Group results by type
+        const groupedResults = {
+            'country': [],
+            'state': [],
+            'city': [],
+            'marker': []
+        };
+        
+        displayResults.forEach(result => {
+            if (groupedResults[result.type]) {
+                groupedResults[result.type].push(result);
+            }
+        });
+        
+        // Build grouped HTML
+        const typeLabels = {
+            'country': { label: '🌍 國家', icon: 'public' },
+            'state': { label: '🗺️ 州/省', icon: 'account_tree' },
+            'city': { label: '🏙️ 城市', icon: 'location_city' },
+            'marker': { label: '📍 地點', icon: 'place' }
+        };
+        
+        let groupedHTML = '';
+        let resultIndex = 0;
+        
+        // Display in order: country, state, city, marker
+        ['country', 'state', 'city', 'marker'].forEach(type => {
+            const typeResults = groupedResults[type];
+            if (typeResults.length > 0) {
+                const typeInfo = typeLabels[type] || { label: type, icon: 'help' };
+                groupedHTML += `
+                    <div class="search-results-group" style="border-bottom: 1px solid #e0e0e0; padding-bottom: 4px; margin-bottom: 4px;">
+                        <div style="padding: 8px 12px; background: #f5f5f5; font-size: 12px; font-weight: 500; color: #666; display: flex; align-items: center; gap: 6px;">
+                            <span class="material-icons" style="font-size: 16px;">${typeInfo.icon}</span>
+                            <span>${typeInfo.label} (${typeResults.length})</span>
+                        </div>
+                    </div>
+                `;
+                
+                typeResults.forEach(result => {
+                    const escapedName = result.name.replace(/'/g, '&#39;').replace(/"/g, '&quot;');
+                    const escapedId = String(result.id).replace(/'/g, '&#39;').replace(/"/g, '&quot;');
+                    const centerJson = result.center ? JSON.stringify(result.center) : 'null';
+                    const typeLabel = typeLabels[result.type]?.label || result.type;
+                    const activeClass = resultIndex === 0 ? 'active' : '';
+                    
+                    groupedHTML += `
+                        <div class="search-result-item ${activeClass}" data-result-index="${resultIndex}" style="margin-left: 12px;">
+                            <label style="display: flex; align-items: center; cursor: pointer; width: 100%; padding: 8px;">
+                                <input type="checkbox" class="search-result-checkbox" data-result-index="${resultIndex}" 
+                                       onchange="handleSearchResultCheckboxChange(this)" 
+                                       onclick="event.stopPropagation();"
+                                       style="margin-right: 8px; width: 18px; height: 18px; cursor: pointer; flex-shrink: 0;">
+                                <div style="flex: 1; display: flex; justify-content: space-between; align-items: center; cursor: pointer;" 
+                                     onclick="handleUnifiedSearchResult('${result.type}', '${escapedId}', '${escapedName}', ${centerJson})">
+                                    <div>
+                                        <strong>${escapedName}</strong>
+                                        ${result.fullName && result.fullName !== result.name ? 
+                                            `<div style="color: #666; font-size: 11px; margin-top: 2px;">${result.fullName.replace(/'/g, '&#39;').replace(/"/g, '&quot;')}</div>` : ''}
+                                    </div>
+                                    <span style="color: #999; font-size: 11px; white-space: nowrap; margin-left: 8px;">${typeLabel}</span>
+                                </div>
+                            </label>
+                        </div>
+                    `;
+                    resultIndex++;
+                });
+            }
+        });
+        
+        const resultsHTML = groupedHTML;
+        
+        // Old flat display code (removed - now using grouped display)
+        /*
         const resultsHTML = displayResults.map((result, index) => {
             const escapedName = result.name.replace(/'/g, '&#39;').replace(/"/g, '&quot;');
             const escapedId = String(result.id).replace(/'/g, '&#39;').replace(/"/g, '&quot;');
@@ -430,6 +509,21 @@ async function searchAreasUnified(query) {
             const response = await fetch(geocodeUrl);
             const data = await response.json();
             
+            // 🔧 检查 Mapbox API 错误响应
+            if (data.error) {
+                const errorCode = data.error.code;
+                const errorMessage = data.error.message || 'Unknown error';
+                console.error(`❌ [Unified] Mapbox Geocoding API Error (Code ${errorCode}): ${errorMessage}`);
+                
+                // 错误代码 5 通常表示 "Invalid request"
+                if (errorCode === 5) {
+                    console.warn(`⚠️ [Unified] Invalid request - 请检查查询参数或 API Token`);
+                }
+                
+                // 不抛出错误，只是记录并跳过
+                return results;
+            }
+            
             if (data.features && data.features.length > 0) {
                 data.features.forEach(feature => {
                     const placeTypes = feature.place_type || [];
@@ -490,6 +584,20 @@ async function searchPlacesForMarkers(query) {
         console.log(`🔍 [Unified] Searching places/POIs for: "${query}"`);
         const response = await fetch(geocodeUrl);
         const data = await response.json();
+        
+        // 🔧 检查 Mapbox API 错误响应
+        if (data.error) {
+            const errorCode = data.error.code;
+            const errorMessage = data.error.message || 'Unknown error';
+            console.error(`❌ [Unified] Mapbox Geocoding API Error (Code ${errorCode}): ${errorMessage}`);
+            
+            // 错误代码 5 通常表示 "Invalid request"
+            if (errorCode === 5) {
+                console.warn(`⚠️ [Unified] Invalid request - 请检查查询参数或 API Token`);
+            }
+            
+            return results; // 返回空结果
+        }
         
         console.log(`📊 [Unified] Mapbox Geocoding returned ${data.features?.length || 0} results for "${query}"`);
         
@@ -715,6 +823,22 @@ window.handleUnifiedSearchResult = async function(type, id, name, center) {
                             throw new Error(`Geocoding API returned ${response.status}`);
                         }
                         const data = await response.json();
+                        
+                        // 🔧 检查 Mapbox API 错误响应
+                        if (data.error) {
+                            const errorCode = data.error.code;
+                            const errorMessage = data.error.message || 'Unknown error';
+                            console.error(`❌ [Unified] Mapbox Geocoding API Error (Code ${errorCode}): ${errorMessage}`);
+                            
+                            // 错误代码 5 通常表示 "Invalid request"
+                            if (errorCode === 5) {
+                                console.warn(`⚠️ [Unified] Invalid request for country: ${countryName}`);
+                            }
+                            
+                            // 使用回退方法
+                            throw new Error(`Mapbox API Error: ${errorMessage}`);
+                        }
+                        
                         if (data.features && data.features.length > 0 && data.features[0].center) {
                             finalCenter = data.features[0].center; // [lng, lat]
                             console.log(`✅ [Unified] Got country center from Geocoding API: [${finalCenter[0]}, ${finalCenter[1]}]`);
@@ -1119,14 +1243,16 @@ function showColorPickerPopupForArea(point, areaId, areaName, areaType, currentC
     const popup = document.getElementById('color-picker-popup');
     if (!popup) {
         console.error('❌ Color picker popup not found');
-        applyColorToArea(areaId, areaName, areaType, currentColor).then(() => {
-            setTimeout(() => {
-                if (typeof window.updateSelectedAreasList === 'function') {
-                    window.updateSelectedAreasList();
-                }
-                updateUnifiedContentList();
-            }, 500);
-        });
+        if (typeof window.applyColorToArea === 'function') {
+            window.applyColorToArea(areaId, areaName, areaType, currentColor).then(() => {
+                setTimeout(() => {
+                    if (typeof window.updateSelectedAreasList === 'function') {
+                        window.updateSelectedAreasList();
+                    }
+                    updateUnifiedContentList();
+                }, 500);
+            });
+        }
         return;
     }
     
@@ -1177,7 +1303,11 @@ function showColorPickerPopupForArea(point, areaId, areaName, areaType, currentC
             }
         } catch (e) {}
         
-        await applyColorToArea(areaId, areaName, areaType, selectedColor);
+        if (typeof window.applyColorToArea === 'function') {
+            await window.applyColorToArea(areaId, areaName, areaType, selectedColor);
+        } else {
+            console.error('❌ applyColorToArea function is not available');
+        }
         
         if (typeof hideColorPickerPopup === 'function') {
             hideColorPickerPopup();
@@ -1613,18 +1743,53 @@ function updateAllAreaStyles(newStyle) {
     appState.selectedAreas.forEach(area => {
         const layerId = `area-${area.type}-${area.id}`;
         if (appState.map && appState.map.getLayer(layerId)) {
-            const color = area.color || appState.currentColor;
-            
-            if (newStyle === 'fill') {
-                appState.map.setPaintProperty(layerId, 'fill-color', color);
-                appState.map.setPaintProperty(layerId, 'fill-opacity', fillOpacity); // Always transparent
-                if (appState.map.getLayoutProperty(layerId, 'visibility') !== 'none') {
-                    appState.map.setPaintProperty(layerId, 'line-width', 0);
+            try {
+                const layer = appState.map.getLayer(layerId);
+                if (!layer) return;
+                
+                const layerType = layer.type;
+                const color = area.color || appState.currentColor;
+                
+                if (newStyle === 'fill') {
+                    // Fill mode: show fill, hide outline
+                    if (layerType === 'fill') {
+                        appState.map.setPaintProperty(layerId, 'fill-color', color);
+                        appState.map.setPaintProperty(layerId, 'fill-opacity', fillOpacity);
+                    }
+                    // Hide line if it exists (safely check if property exists)
+                    if (layerType === 'line') {
+                        appState.map.setPaintProperty(layerId, 'line-width', 0);
+                    } else if (layerType === 'fill') {
+                        // Fill layers can also have line properties (for outlines)
+                        try {
+                            const currentLineWidth = appState.map.getPaintProperty(layerId, 'line-width');
+                            if (currentLineWidth !== undefined) {
+                                appState.map.setPaintProperty(layerId, 'line-width', 0);
+                            }
+                        } catch (e) {
+                            // line-width property doesn't exist, skip
+                        }
+                    }
+                } else {
+                    // Outline mode: hide fill, show outline
+                    if (layerType === 'fill') {
+                        appState.map.setPaintProperty(layerId, 'fill-opacity', 0);
+                        // Fill layers can have line properties for outlines
+                        try {
+                            appState.map.setPaintProperty(layerId, 'line-color', color);
+                            appState.map.setPaintProperty(layerId, 'line-width', 2);
+                        } catch (e) {
+                            // line-color/line-width properties don't exist, skip
+                            console.warn(`⚠️ [updateAllAreaStyles] 图层 ${layerId} 不支持轮廓模式（缺少 line-color/line-width 属性）`);
+                        }
+                    } else if (layerType === 'line') {
+                        appState.map.setPaintProperty(layerId, 'line-color', color);
+                        appState.map.setPaintProperty(layerId, 'line-width', 2);
+                    }
                 }
-            } else {
-                appState.map.setPaintProperty(layerId, 'fill-opacity', 0); // Outline mode: no fill
-                appState.map.setPaintProperty(layerId, 'line-color', color);
-                appState.map.setPaintProperty(layerId, 'line-width', 2);
+            } catch (error) {
+                console.warn(`⚠️ [updateAllAreaStyles] 无法更新图层 ${layerId} 的样式:`, error.message);
+                // 如果图层类型不匹配或属性不存在，跳过这个图层
             }
         }
     });

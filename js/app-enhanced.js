@@ -13,8 +13,8 @@ if (typeof window.__MAP_APP_INITIALIZED__ !== 'undefined') {
         Logger.error('app-enhanced.js 已被加载，检测到重复的 script 标签！');
         Logger.error('请检查 HTML 文件中是否有重复的 <script src="js/app-enhanced.js"> 标签');
     } else {
-        console.error('❌ app-enhanced.js 已被加载，检测到重复的 script 标签！');
-        console.error('请检查 HTML 文件中是否有重复的 <script src="js/app-enhanced.js"> 标签');
+    console.error('❌ app-enhanced.js 已被加载，检测到重复的 script 标签！');
+    console.error('请检查 HTML 文件中是否有重复的 <script src="js/app-enhanced.js"> 标签');
     }
     throw new Error('app-enhanced.js 已被加载，请检查是否有重复的 script 标签');
 }
@@ -90,7 +90,13 @@ document.addEventListener('DOMContentLoaded', function () {
     
     // Validate Mapbox token
     if (!CONFIG.MAPBOX.TOKEN || CONFIG.MAPBOX.TOKEN === 'YOUR_MAPBOX_ACCESS_TOKEN') {
-        showToast('Please set your Mapbox access token in config.js!', 'error');
+        if (typeof window.ErrorMessages !== 'undefined' && window.ErrorMessages.showErrorToast) {
+            window.ErrorMessages.showErrorToast('MAPBOX_TOKEN_INVALID');
+        } else if (typeof showToast === 'function') {
+            showToast('Mapbox Token无效: 请在 config.js 中配置有效的访问令牌', 'error');
+        } else {
+            console.error('❌ Mapbox Token无效: 请在 config.js 中配置有效的访问令牌');
+        }
         return;
     }
 
@@ -128,14 +134,14 @@ if (!window.appState) {
     map: null,
     currentAreaType: 'country', // 'country' | 'administration'
     administrationLevel: null, // 'state' | 'city' | null (detected on click)
-    preferredAdminLevel: 'city', // 'state' | 'city' | 'both' - User's preference for admin level selection (default: 'city' for maximum detail)
+    preferredAdminLevel: 'state', // 'state' | 'city' | 'both' - User's preference for admin level selection (default: 'state' for province/state level only)
     selectedAreas: [], // Array of { id, name, type, color, layerId }
     selectedCountry: null, // { id, name } - Selected country for two-layer mode
     currentColor: '#6CA7A1', // Default: Tropical Teal
     mapStyle: 'light',
     labelsVisible: false, // 预设隐藏标签
     labelLayerIds: [], // Cache label layer IDs for performance
-    waterColor: null, // 自定义海洋颜色（null = 使用默认）
+    waterColor: '#C1D3E2', // 自定义海洋颜色（默认 #C1D3E2）
     boundaryMode: 'fill', // 'fill' | 'line'
     sources: {
         adm0: null,
@@ -344,7 +350,7 @@ function initializeMap() {
             if (typeof Logger !== 'undefined') {
                 Logger.error('Map error', e.error.message);
             } else {
-                console.error('Map error:', e.error.message);
+            console.error('Map error:', e.error.message);
             }
         }
     });
@@ -396,14 +402,14 @@ async function loadBoundarySourceForType(areaType, createVisibleLayer = false) {
         if (typeof Logger !== 'undefined') {
             Logger.info(`Using GADM data for ${areaType}`);
         } else {
-            console.log(`🔄 Using GADM data for ${areaType}`);
+        console.log(`🔄 Using GADM data for ${areaType}`);
         }
         try {
             await window.GADM_LOADER.loadBoundarySourceForType(areaType, createVisibleLayer);
             if (typeof Logger !== 'undefined') {
                 Logger.success(`Successfully loaded GADM data for ${areaType}`);
             } else {
-                console.log(`✅ Successfully loaded GADM data for ${areaType}`);
+            console.log(`✅ Successfully loaded GADM data for ${areaType}`);
             }
             return;
         } catch (error) {
@@ -412,12 +418,16 @@ async function loadBoundarySourceForType(areaType, createVisibleLayer = false) {
                 if (typeof Logger !== 'undefined') {
                     Logger.warn(`Failed to load GADM data for ${areaType}`, error.message);
                 } else {
-                    console.warn(`⚠️ Failed to load GADM data for ${areaType}:`, error.message);
+            console.warn(`⚠️ Failed to load GADM data for ${areaType}:`, error.message);
                 }
             }
             
             // Show user-friendly error message
-            if (typeof showToast === 'function') {
+            if (typeof window.ErrorMessages !== 'undefined' && window.ErrorMessages.showErrorToast) {
+                const areaTypeName = areaType === 'country' ? 'country' : 
+                                    areaType === 'state' ? 'state' : 'city';
+                window.ErrorMessages.showErrorToast('GADM_LOAD_FAILED', { areaType: areaTypeName }, 5000);
+            } else if (typeof showToast === 'function') {
                 const areaTypeName = areaType === 'country' ? '國家' : 
                                     areaType === 'state' ? '州/省' : '城市';
                 showToast(`無法載入 ${areaTypeName} 邊界數據。請檢查數據文件是否存在。`, 'error', 5000);
@@ -431,8 +441,8 @@ async function loadBoundarySourceForType(areaType, createVisibleLayer = false) {
     } else {
         if (typeof Logger !== 'undefined') {
             Logger.warn('GADM_LOADER not available, falling back to Mapbox Boundaries for country only');
-        } else {
-            console.warn(`⚠️ GADM_LOADER not available, falling back to Mapbox Boundaries for country only`);
+    } else {
+        console.warn(`⚠️ GADM_LOADER not available, falling back to Mapbox Boundaries for country only`);
         }
     }
     
@@ -451,7 +461,7 @@ async function loadBoundarySourceForType(areaType, createVisibleLayer = false) {
         if (typeof Logger !== 'undefined') {
             Logger.warn(`No source URL for ${areaType}`);
         } else {
-            console.warn(`No source URL for ${areaType}`);
+        console.warn(`No source URL for ${areaType}`);
         }
         return;
     }
@@ -553,11 +563,11 @@ async function loadBoundarySourceForType(areaType, createVisibleLayer = false) {
         
         // Also listen for network errors
             window.addEventListener('error', function (e) {
-                if (e.target && e.target.src && e.target.src.includes(sourceId) && e.target.src.includes('402')) {
+            if (e.target && e.target.src && e.target.src.includes(sourceId) && e.target.src.includes('402')) {
                     if (typeof Logger !== 'undefined') {
                         Logger.warn(`402 ERROR: ${sourceId} - This source requires paid Mapbox access.`);
                     } else {
-                        console.warn(`⚠️ 402 ERROR: ${sourceId} - This source requires paid Mapbox access.`);
+                console.warn(`⚠️ 402 ERROR: ${sourceId} - This source requires paid Mapbox access.`);
                     }
                 if (appState.sources[sourceTypeKey]) {
                     appState.sources[sourceTypeKey].accessible = false;
@@ -579,8 +589,8 @@ async function loadBoundarySourceForType(areaType, createVisibleLayer = false) {
         } else {
             if (typeof Logger !== 'undefined') {
                 Logger.error(`Error loading source ${sourceId}`, error);
-            } else {
-                console.error(`Error loading source ${sourceId}:`, error);
+        } else {
+            console.error(`Error loading source ${sourceId}:`, error);
             }
             appState.sources[sourceTypeKey] = {
                 id: sourceId,
@@ -633,7 +643,7 @@ function createVisibleBoundaryLayer(areaType) {
         if (typeof Logger !== 'undefined') {
             Logger.warn(`Cannot create layer ${layerId} - source layer unknown for ${areaType}`);
         } else {
-            console.warn(`Cannot create layer ${layerId} - source layer unknown for ${areaType}`);
+        console.warn(`Cannot create layer ${layerId} - source layer unknown for ${areaType}`);
         }
         return false;
     }
@@ -2073,17 +2083,31 @@ function getAreaName(feature, areaType) {
             
             return 'Unknown Country';
         } else if (areaType === 'state') {
-            const name = (props.NL_NAME_1 && props.NL_NAME_1 !== 'NA') ? props.NL_NAME_1 :
+            // 🔧 行政区标签不显示国家名，只返回 state 名称
+            let name = (props.NL_NAME_1 && props.NL_NAME_1 !== 'NA') ? props.NL_NAME_1 :
                         props.NAME_1 || props.name_1 || props.name || props.State || props.STATE;
+            
             if (name) {
+                // 如果 name 包含国家名（例如 "台灣 - 某省"），只保留省名
+                if (name.includes(' - ')) {
+                    const parts = name.split(' - ');
+                    name = parts[parts.length - 1]; // 返回最后一部分（省名）
+                }
                 console.log(`✅ Got state name from properties: ${name}`);
                 return name;
             }
             return props.GID_1 || 'Unknown State';
         } else {
-            const name = (props.NL_NAME_2 && props.NL_NAME_2 !== 'NA') ? props.NL_NAME_2 :
+            // 🔧 行政区标签不显示国家名，只返回 city 名称
+            let name = (props.NL_NAME_2 && props.NL_NAME_2 !== 'NA') ? props.NL_NAME_2 :
                         props.NAME_2 || props.name_2 || props.name || props.City || props.CITY;
+            
             if (name) {
+                // 如果 name 包含国家名或省名（例如 "台灣 - 南投縣"），只保留市名
+                if (name.includes(' - ')) {
+                    const parts = name.split(' - ');
+                    name = parts[parts.length - 1]; // 返回最后一部分（市名）
+                }
                 console.log(`✅ Got city name from properties: ${name}`);
                 return name;
             }
@@ -2530,9 +2554,12 @@ async function createAreaLayer(areaId, areaName, areaType, color, layerId, bound
     }
     
     // 更新自定义标签（在区域创建后）
+    // 跳过预览层的标签更新（预览层不在 appState.selectedAreas 中）
+    if (!layerId.startsWith('preview-area')) {
     setTimeout(() => {
         updateCustomChineseLabels();
     }, 500);
+    }
 }
 
 /**
@@ -2757,8 +2784,8 @@ function updateBoundaryLineVisibility() {
             if (areaType === 'country') {
                 // Country boundaries: control visibility with toggle
                 const shouldBeVisible = appState.countryBoundaryVisible;
-                const finalVisibility = shouldBeVisible ? 'visible' : 'none';
-                appState.map.setLayoutProperty(layerId, 'visibility', finalVisibility);
+            const finalVisibility = shouldBeVisible ? 'visible' : 'none';
+            appState.map.setLayoutProperty(layerId, 'visibility', finalVisibility);
                 console.log(`✅ Updated ${layerId} visibility to: ${finalVisibility} (country: ${appState.countryBoundaryVisible})`);
             } else if (areaType === 'state' || areaType === 'city') {
                 // CRITICAL FIX: Admin boundaries must always be visible for click detection
@@ -3003,6 +3030,15 @@ function switchAreaType(type) {
         showBoundaryLayer('country');
         
     } else if (type === 'administration') {
+        // 🔧 切换到行政区模式时，自动显示行政区边界
+        appState.adminBoundaryVisible = true;
+        
+        // 更新 toggle 状态（inverted logic: checked = hide）
+        const adminToggle = document.getElementById('admin-boundary-visibility-toggle');
+        if (adminToggle) {
+            adminToggle.checked = false; // unchecked = show
+        }
+        
         // Administration mode: Two-layer mode
         // Step 1: Keep country layer visible (if country is selected)
         if (appState.selectedCountry) {
@@ -3014,33 +3050,47 @@ function switchAreaType(type) {
             showBoundaryLayer('country');
             
             // Step 2: Immediately load state and city boundaries for selected country
-            loadStateCityForCountry(appState.selectedCountry.id);
+            loadStateCityForCountry(appState.selectedCountry.id).then(() => {
+                // 数据加载完成后，更新边界线可见性
+                updateBoundaryLineVisibility();
+            });
         } else {
             console.log('💡 Tip: Select a country first in "國家" mode, then switch to "行政區" mode');
             console.log('   Or: Click directly on administrative areas - system will auto-detect the country');
             
-            // Step 2: Load state and city boundaries globally (will filter by country when selected)
-            // Note: Layers will be created when data loads, and shown automatically
-            // Don't try to show layers immediately - they will be shown when ready
-            console.log('💡 Loading administrative boundaries...');
+            // 🔧 根据 preferredAdminLevel 决定加载哪个级别
+            // 默认只加载 state（省/州）级别
+            const adminLevel = appState.preferredAdminLevel || 'state';
+            console.log(`💡 Loading administrative boundaries (${adminLevel} level)...`);
             console.log('   They will appear when data is loaded');
             
-            // Try to load state level (layers will be created automatically when source loads)
-            loadBoundarySourceForType('state', true).then(() => {
-                ensureBoundaryLayerExists('state');
-                showBoundaryLayer('state');
-            }).catch(err => {
-                console.log('ℹ️ State boundaries not available:', err.message);
-            });
+            if (adminLevel === 'state' || adminLevel === 'both') {
+                // 加载 state 级别（省/州）
+                loadBoundarySourceForType('state', true).then(() => {
+                    ensureBoundaryLayerExists('state');
+                    showBoundaryLayer('state');
+                    // 更新边界线可见性
+                    updateBoundaryLineVisibility();
+                }).catch(err => {
+                    console.log('ℹ️ State boundaries not available:', err.message);
+                });
+            }
             
-            // Try to load city level (layers will be created automatically when source loads)
-            loadBoundarySourceForType('city', true).then(() => {
-                ensureBoundaryLayerExists('city');
-                showBoundaryLayer('city');
-            }).catch(err => {
-                console.log('ℹ️ City boundaries not available:', err.message);
-            });
+            if (adminLevel === 'city' || adminLevel === 'both') {
+                // 只有在 preferredAdminLevel 为 'city' 或 'both' 时才加载 city 级别
+                loadBoundarySourceForType('city', true).then(() => {
+                    ensureBoundaryLayerExists('city');
+                    showBoundaryLayer('city');
+                    // 更新边界线可见性
+                    updateBoundaryLineVisibility();
+                }).catch(err => {
+                    console.log('ℹ️ City boundaries not available:', err.message);
+                });
+            }
         }
+        
+        // 🔧 立即更新边界线可见性（即使数据还在加载）
+        updateBoundaryLineVisibility();
         
         // Note: If GADM files are not available, these will fail gracefully
         // User can still use country mode
@@ -3060,24 +3110,45 @@ function loadStateCityForCountry(countryId) {
     ensureBoundaryLayerExists('country');
     showBoundaryLayer('country');
     
-    // Skip country-specific files (they usually don't exist)
-    // Directly use global GADM data which filters by country automatically
-    console.log(`🔄 Loading state boundaries (using global GADM data)...`);
-    loadBoundarySourceForType('state', true).then(() => {
-        ensureBoundaryLayerExists('state');
-        showBoundaryLayer('state');
-        console.log(`✅ State layer should now be visible and clickable`);
-    }).catch(err => {
-        console.warn('State boundaries not available:', err);
-    });
+    // 🔧 根据 preferredAdminLevel 决定加载哪个级别
+    // 默认只加载 state（省/州）级别
+    const adminLevel = appState.preferredAdminLevel || 'state';
+    const promises = [];
     
-    console.log(`🔄 Loading city boundaries (using global GADM data)...`);
-    loadBoundarySourceForType('city', true).then(() => {
-        ensureBoundaryLayerExists('city');
-        showBoundaryLayer('city');
-        console.log(`✅ City layer should now be visible and clickable`);
-    }).catch(err => {
-        console.warn('City boundaries not available:', err);
+    if (adminLevel === 'state' || adminLevel === 'both') {
+        // 加载 state 级别（省/州）
+        console.log(`🔄 Loading state boundaries (using global GADM data)...`);
+        const statePromise = loadBoundarySourceForType('state', true).then(() => {
+            ensureBoundaryLayerExists('state');
+            showBoundaryLayer('state');
+            // 🔧 更新边界线可见性
+            updateBoundaryLineVisibility();
+            console.log(`✅ State layer should now be visible and clickable`);
+        }).catch(err => {
+            console.warn('State boundaries not available:', err);
+        });
+        promises.push(statePromise);
+    }
+    
+    if (adminLevel === 'city' || adminLevel === 'both') {
+        // 只有在 preferredAdminLevel 为 'city' 或 'both' 时才加载 city 级别
+        console.log(`🔄 Loading city boundaries (using global GADM data)...`);
+        const cityPromise = loadBoundarySourceForType('city', true).then(() => {
+            ensureBoundaryLayerExists('city');
+            showBoundaryLayer('city');
+            // 🔧 更新边界线可见性
+            updateBoundaryLineVisibility();
+            console.log(`✅ City layer should now be visible and clickable`);
+        }).catch(err => {
+            console.warn('City boundaries not available:', err);
+        });
+        promises.push(cityPromise);
+    }
+    
+    // 🔧 返回 Promise，等待所有边界加载完成
+    return Promise.all(promises).then(() => {
+        // 最终更新边界线可见性
+        updateBoundaryLineVisibility();
     });
 }
 
@@ -3120,7 +3191,7 @@ function showBoundaryLayer(areaType) {
                 console.log(`✅ Made ${layerId} visible for click detection (administration mode)`);
             } else {
                 // Not in administration mode, use toggle state
-                updateBoundaryLineVisibility();
+        updateBoundaryLineVisibility();
             }
         } else {
             // For country layer, use toggle state
@@ -3533,6 +3604,21 @@ async function searchAreas(query, container) {
         const response = await fetch(geocodeUrl);
         const data = await response.json();
         
+        // 🔧 检查 Mapbox API 错误响应
+        if (data.error) {
+            const errorCode = data.error.code;
+            const errorMessage = data.error.message || 'Unknown error';
+            console.error(`❌ [Search] Mapbox Geocoding API Error (Code ${errorCode}): ${errorMessage}`);
+            
+            // 错误代码 5 通常表示 "Invalid request"
+            if (errorCode === 5) {
+                console.warn(`⚠️ [Search] Invalid request - 请检查查询参数或 API Token`);
+            }
+            
+            // 返回空结果，不抛出错误
+            return results;
+        }
+        
         if (data.features && data.features.length > 0) {
             console.log(`📍 [Search] Found ${data.features.length} results from Mapbox Geocoding`);
             
@@ -3882,6 +3968,48 @@ function setupExportDialog() {
         if (e.target === overlay) {
             closeDialog();
         }
+    });
+    
+    // Export presets
+    const presetButtons = document.querySelectorAll('.export-preset-btn');
+    presetButtons.forEach(btn => {
+        btn.addEventListener('click', function() {
+            const preset = this.dataset.preset;
+            
+            // Remove active state from all presets
+            presetButtons.forEach(b => b.style.background = '#f5f5f5');
+            this.style.background = '#e3f2fd';
+            this.style.borderColor = '#6CA7A1';
+            
+            // Apply preset settings
+            if (preset === 'web') {
+                paperSizeSelect.value = 'a4';
+                document.querySelector('input[name="export-orientation"][value="portrait"]').checked = true;
+                dpiSelect.value = '72';
+                document.querySelector('input[name="export-format"][value="png"]').checked = true;
+            } else if (preset === 'print') {
+                paperSizeSelect.value = 'a4';
+                document.querySelector('input[name="export-orientation"][value="portrait"]').checked = true;
+                dpiSelect.value = '300';
+                document.querySelector('input[name="export-format"][value="png"]').checked = true;
+            } else if (preset === 'highres') {
+                paperSizeSelect.value = 'a4';
+                document.querySelector('input[name="export-orientation"][value="portrait"]').checked = true;
+                dpiSelect.value = '600';
+                document.querySelector('input[name="export-format"][value="png"]').checked = true;
+            }
+            
+            // Update previews
+            updateDimensionsPreview();
+            updateExportPreview();
+            
+            // Update quality group visibility
+            if (document.querySelector('input[name="export-format"]:checked').value === 'jpeg') {
+                qualityGroup.style.display = 'block';
+            } else {
+                qualityGroup.style.display = 'none';
+            }
+        });
     });
     
     // Update dimensions preview when options change
@@ -4807,17 +4935,22 @@ function setupAdminLevelSelector() {
     const adminLevelGroup = document.getElementById('admin-level-group');
     if (!adminLevelGroup) return;
     
-    // Initialize default to 'city' (maximum detail level)
-    appState.preferredAdminLevel = 'city';
+    // 🔧 默认设置为 'state'（省/州级别），与 appState 初始化保持一致
+    // 如果 appState.preferredAdminLevel 已经设置，使用它；否则默认为 'state'
+    if (!appState.preferredAdminLevel || appState.preferredAdminLevel === 'city') {
+        appState.preferredAdminLevel = 'state';
+    }
     
-    // Set initial active button state
-    const cityBtn = adminLevelGroup.querySelector('.btn-toggle[data-level="city"]');
-    if (cityBtn) {
-        cityBtn.classList.add('active');
+    // Set initial active button state based on appState.preferredAdminLevel
+    const defaultLevel = appState.preferredAdminLevel || 'state';
+    const defaultBtn = adminLevelGroup.querySelector(`.btn-toggle[data-level="${defaultLevel}"]`);
+    if (defaultBtn) {
+        defaultBtn.classList.add('active');
         // Remove active from other buttons
         adminLevelGroup.querySelectorAll('.btn-toggle').forEach(b => {
-            if (b !== cityBtn) b.classList.remove('active');
+            if (b !== defaultBtn) b.classList.remove('active');
         });
+        console.log(`✅ [setupAdminLevelSelector] 默认行政层级设置为: ${defaultLevel}`);
     }
     
     // Use event delegation for button clicks
@@ -5043,12 +5176,10 @@ function setGlobeSkyBackground() {
         });
         console.log('✅ Globe Sky background set using setFog() - water layers should be visible');
         
-        // 应用自定义海洋颜色（如果设置了）
-        if (appState.waterColor) {
+        // 应用自定义海洋颜色（默认 #C1D3E2）
             setTimeout(() => {
-                extractAndModifyWaterColor(appState.waterColor);
+            extractAndModifyWaterColor(appState.waterColor || '#C1D3E2');
             }, 1000);
-        }
     } catch (err) {
         console.warn('⚠️ Globe Sky background setup (setFog) failed:', err.message);
         // Fallback: try setting background layer
@@ -5156,17 +5287,31 @@ function extractAndModifyWaterColor(waterColor = '#C1D3E2') {
 
 /**
  * 设置海洋颜色
+ * 可以通过 window.setWaterColor(color) 调用
  */
 function setWaterColor(color) {
-    appState.waterColor = color;
-    if (appState.map && appState.map.loaded()) {
-        if (color) {
-            extractAndModifyWaterColor(color);
-        } else {
-            // Reset to default - need to reload style or extract default water color
-            // For now, just clear the custom color
-            extractAndModifyWaterColor('#C1D3E2');
-        }
+    // 🔧 保存颜色到 appState（即使地图未加载）
+    appState.waterColor = color || '#C1D3E2';
+    
+    // 🔧 如果地图已加载，立即应用颜色
+    if (appState.map && appState.map.isStyleLoaded() && appState.map.loaded()) {
+        const targetColor = color || '#C1D3E2';
+        extractAndModifyWaterColor(targetColor);
+        console.log(`✅ [setWaterColor] 已应用海洋颜色: ${targetColor}`);
+    } else if (appState.map) {
+        // 🔧 地图未完全加载，等待加载完成后再应用
+        console.log(`⏳ [setWaterColor] 地图未完全加载，等待加载完成...`);
+        appState.map.once('style.load', () => {
+            appState.map.once('idle', () => {
+                setTimeout(() => {
+                    const targetColor = appState.waterColor || '#C1D3E2';
+                    extractAndModifyWaterColor(targetColor);
+                    console.log(`✅ [setWaterColor] 地图加载完成后已应用海洋颜色: ${targetColor}`);
+                }, 500);
+            });
+        });
+    } else {
+        console.log(`⏳ [setWaterColor] 地图未初始化，颜色已保存: ${appState.waterColor}`);
     }
 }
 
@@ -5500,6 +5645,87 @@ async function reapplySelectedAreas() {
 }
 
 /**
+ * 已知国家中心点数据库
+ * 用于确保标签位置准确（特别是 MultiPolygon 国家）
+ * 格式: { ISO_CODE: [lng, lat] }
+ * 
+ * 数据来源: https://github.com/gavinr/world-countries-centroids
+ * 使用最大陆地块的质心，确保标签位置准确（避免放在岛屿或飞地）
+ * 
+ * 该数据源使用科学方法计算国家中心点，特别针对有多个分散区域的国家
+ * （如美国、新西兰、智利、葡萄牙等）使用最大陆地块的质心
+ */
+const KNOWN_COUNTRY_CENTROIDS = {
+    // 亚洲
+    'AFG': [66.592161, 34.134026],      // 阿富汗
+    'ARM': [45.054908, 40.178413],      // 亚美尼亚
+    'AZE': [48.634593, 40.392051],      // 阿塞拜疆
+    'CHN': [104.691139, 38.073255],     // 中国（主陆地中心）
+    'GEO': [43.378867, 42.179863],      // 格鲁吉亚
+    'IDN': [113.965382, 0.155920],      // 印尼（主陆地中心）
+    'IND': [81.173004, 23.586301],      // 印度（主陆地中心）
+    'IRN': [54.237077, 32.906024],      // 伊朗（主陆地中心）- 使用数据源坐标
+    'IRQ': [43.832529, 33.105076],      // 伊拉克
+    'JPN': [137.469342, 36.767388],     // 日本（主陆地中心）
+    'KAZ': [66.375919, 47.641465],      // 哈萨克斯坦
+    'KEN': [37.953094, 0.689918],       // 肯尼亚
+    'MMR': [97.088923, 19.901228],      // 缅甸
+    'MNG': [103.398736, 47.086445],     // 蒙古
+    'PAK': [69.088351, 30.116188],      // 巴基斯坦（主陆地中心）- 使用数据源坐标
+    'PHL': [121.822089, 15.586542],     // 菲律宾（主陆地中心）
+    'RUS': [98.670499, 59.039434],      // 俄罗斯（主陆地中心）
+    'SAU': [44.600958, 24.136038],      // 沙特阿拉伯
+    'THA': [101.086751, 13.662228],     // 泰国
+    'TUR': [35.568868, 38.932074],      // 土耳其
+    'UZB': [63.854830, 41.487907],      // 乌兹别克斯坦
+    'VNM': [105.913388, 16.517347],     // 越南
+    
+    // 欧洲
+    'DEU': [10.426171, 51.083045],      // 德国
+    'ESP': [-3.651625, 40.365008],      // 西班牙（主陆地中心）
+    'FIN': [25.657384, 65.015790],      // 芬兰
+    'FRA': [2.194024, 46.642368],      // 法国（主陆地中心）
+    'GBR': [-2.852944, 53.978447],      // 英国（主陆地中心）
+    'ITA': [12.763657, 42.982011],      // 意大利（主陆地中心）
+    'NOR': [16.670259, 64.977759],      // 挪威
+    'POL': [19.435733, 52.068481],      // 波兰
+    'SWE': [17.062432, 62.734210],      // 瑞典
+    'UKR': [31.273772, 48.657533],      // 乌克兰
+    
+    // 美洲
+    'ARG': [-64.532385, -35.697271],    // 阿根廷（主陆地中心）
+    'BRA': [-54.355207, -11.524630],    // 巴西（主陆地中心）
+    'CAN': [-98.416805, 57.550480],      // 加拿大（主陆地中心）
+    'CHL': [-70.768634, -37.829383],     // 智利（主陆地中心）
+    'COL': [-72.644507, 4.187754],       // 哥伦比亚
+    'MEX': [-101.553997, 23.874361],    // 墨西哥（主陆地中心）
+    'PER': [-74.114162, -8.522718],     // 秘鲁
+    'USA': [-96.331617, 38.820809],      // 美国（主陆地中心）
+    'VEN': [-66.364921, 7.148325],       // 委内瑞拉
+    
+    // 非洲
+    'COD': [23.419828, -3.338630],       // 刚果民主共和国
+    'DZA': [2.655846, 28.350970],        // 阿尔及利亚（主陆地中心）
+    'EGY': [30.240135, 26.605170],       // 埃及（主陆地中心）
+    'ETH': [39.914903, 8.729390],        // 埃塞俄比亚
+    'LBY': [17.911334, 27.202916],       // 利比亚
+    'NGA': [8.147715, 9.610294],         // 尼日利亚
+    'SDN': [29.951458, 15.670602],       // 苏丹
+    'TZA': [34.818322, -6.355794],       // 坦桑尼亚
+    'ZAF': [24.752527, -28.553619],      // 南非（主陆地中心）
+    
+    // 大洋洲
+    'AUS': [134.022772, -25.697338],     // 澳大利亚（主陆地中心）
+    'NZL': [170.690355, -43.827654],     // 新西兰（主陆地中心）
+    'PNG': [144.834894, -7.156913],      // 巴布亚新几内亚
+    
+    // 其他
+    'GRL': [-42.075678, 74.168472],      // 格陵兰
+    'MAD': [46.684935, -19.041636],      // 马达加斯加
+    'TWN': [120.9605, 23.6978],          // 台湾（使用自定义坐标，数据源可能不包含）
+};
+
+/**
  * 计算几何中心点（使用真正的几何中心算法 - 质心）
  */
 function calculateCentroid(geometry) {
@@ -5555,9 +5781,36 @@ function calculateCentroid(geometry) {
         
         return [lngSum / (6 * area), latSum / (6 * area)];
     } else if (geometry.type === 'MultiPolygon') {
-        // 对于 MultiPolygon，使用第一个（通常是最大的）多边形的中心
-        if (geometry.coordinates && geometry.coordinates[0] && geometry.coordinates[0][0]) {
+        // 🔧 对于 MultiPolygon，找到最大的多边形（通常是主陆地），使用其中心
+        if (geometry.coordinates && geometry.coordinates.length > 0) {
+            let largestPolygon = null;
+            let largestArea = 0;
+            
+            // 找到面积最大的多边形（通常是主陆地）
+            for (const polygon of geometry.coordinates) {
+                if (polygon && polygon[0] && polygon[0].length > 0) {
+                    // 计算多边形面积（使用 Shoelace 公式）
+                    const coords = polygon[0];
+                    let area = 0;
+                    for (let i = 0; i < coords.length - 1; i++) {
+                        area += coords[i][0] * coords[i + 1][1] - coords[i + 1][0] * coords[i][1];
+                    }
+                    area = Math.abs(area) / 2;
+                    
+                    if (area > largestArea) {
+                        largestArea = area;
+                        largestPolygon = polygon;
+                    }
+                }
+            }
+            
+            // 使用最大多边形的中心
+            if (largestPolygon) {
+                return calculateCentroid({ type: 'Polygon', coordinates: largestPolygon });
+            } else {
+                // 回退：使用第一个多边形
             return calculateCentroid({ type: 'Polygon', coordinates: geometry.coordinates[0] });
+            }
         }
     }
     return null;
@@ -5569,6 +5822,16 @@ function calculateCentroid(geometry) {
 function getAreaCenter(area) {
     if (!area || !area.id || !area.type) return null;
     
+    // 🔧 优先使用已知国家中心点数据库（仅限国家级别）
+    if (area.type === 'country' && typeof KNOWN_COUNTRY_CENTROIDS !== 'undefined') {
+        const knownCenter = KNOWN_COUNTRY_CENTROIDS[area.id];
+        if (knownCenter && Array.isArray(knownCenter) && knownCenter.length >= 2) {
+            console.log(`📍 [getAreaCenter] 使用已知中心点: ${area.name} (${area.id}) -> [${knownCenter[0].toFixed(4)}, ${knownCenter[1].toFixed(4)}]`);
+            return knownCenter;
+        }
+    }
+    
+    // 回退：从 GADM 数据计算中心点
     try {
         const gadmSource = appState.map.getSource(`gadm-${area.type}`);
         if (gadmSource && gadmSource._data && gadmSource._data.features) {
@@ -5591,6 +5854,9 @@ function getAreaCenter(area) {
                 // 计算多边形中心点
                 const center = calculateCentroid(feature.geometry);
                 if (center && center.length >= 2) {
+                    if (area.type === 'country') {
+                        console.log(`📍 [getAreaCenter] 使用计算的中心点: ${area.name} (${area.id}) -> [${center[0].toFixed(4)}, ${center[1].toFixed(4)}]`);
+                    }
                     return center;
                 }
             }
@@ -5691,8 +5957,8 @@ function getAdjacentCountriesFromGADM(selectedAreas, depth = 1) {
                     // 如果没有中文名称，尝试从 COUNTRY_CODES 映射表获取
                     if (typeof COUNTRY_CODES !== 'undefined' && COUNTRY_CODES[isoCode]) {
                         const countryInfo = COUNTRY_CODES[isoCode];
-                        // 优先使用中文名称
-                        countryName = countryInfo.nameZh || countryInfo.name || countryInfo.nameEn || countryName;
+                        // 优先使用中文名称 (COUNTRY_CODES中name字段就是中文名称)
+                        countryName = countryInfo.name || countryInfo.nameEn || countryName;
                     } else {
                         // 如果没有映射表，尝试使用 getAreaName 函数获取（它会处理中文名称转换）
                         if (typeof getAreaName === 'function') {
@@ -5842,19 +6108,35 @@ function getAdjacentSeas(selectedAreas) {
     selectedIsoCodes.forEach(isoCode => {
         const seas = seaNames[isoCode] || [];
         seas.forEach((seaName, index) => {
-            // 计算海域标签位置（基于国家中心点向海岸方向偏移）
+            // 🔧 优先使用海洋标签语义中心位置数据库
+            let seaCenter = null;
+            
+            if (typeof SEA_SEMANTIC_CENTERS !== 'undefined' && SEA_SEMANTIC_CENTERS[seaName]) {
+                // 使用语义中心位置（专业地图实践）
+                seaCenter = SEA_SEMANTIC_CENTERS[seaName];
+                console.log(`🌊 [Sea Label] ${seaName}: 使用语义中心位置: [${seaCenter[0].toFixed(4)}, ${seaCenter[1].toFixed(4)}]`);
+            } else {
+                // 回退：基于国家中心点计算偏移
             const countryArea = selectedAreas.find(a => a.id === isoCode);
             if (countryArea) {
                 const center = getAreaCenter(countryArea);
                 if (center && center.length >= 2) {
-                    // 根据国家位置和海域类型，计算标签位置
-                    // 简化处理：在国家中心点附近偏移
                     const offset = getSeaLabelOffset(isoCode, seaName, index, seas.length);
-                    const seaCenter = [
+                        // 检查是否返回了语义中心标记
+                        if (offset && typeof offset === 'object' && offset.useSemanticCenter) {
+                            seaCenter = offset.semanticCenter;
+                        } else if (Array.isArray(offset) && offset.length >= 2) {
+                            // 使用偏移量
+                            seaCenter = [
                         center[0] + offset[0],
                         center[1] + offset[1]
                     ];
+                        }
+                    }
+                }
+            }
                     
+            if (seaCenter && seaCenter.length >= 2) {
                     // 检查是否已存在相同海域的标签
                     const existingSea = adjacentSeas.find(s => 
                         s.name === seaName && 
@@ -5869,7 +6151,6 @@ function getAdjacentSeas(selectedAreas) {
                             center: seaCenter,
                             countryIso: isoCode
                         });
-                    }
                 }
             }
         });
@@ -5880,9 +6161,71 @@ function getAdjacentSeas(selectedAreas) {
 }
 
 /**
+ * 海洋标签语义中心位置数据库
+ * 
+ * 数据来源：基于专业地图实践（Natural Earth 风格）
+ * 原则：
+ * 1. 标签必须落在「连续、开阔水域」
+ * 2. 避开海岸线、岛链、国界密集区
+ * 3. 使用语义中心（视觉上的核心区域），而非几何中心
+ * 4. 延展式文字：标签位置适合横向或顺洋流方向显示
+ * 
+ * 格式: { '海域名称': [lng, lat] }
+ * 坐标基于连续、开阔水域的语义中心
+ */
+const SEA_SEMANTIC_CENTERS = {
+    // 中东/西亚海域
+    '波斯灣': [50.5, 27.0],        // 波斯湾中央，避开海岸线和岛屿
+    '阿拉伯海': [65.0, 18.0],      // 阿拉伯海中央，远离印度和阿拉伯半岛海岸
+    '阿曼灣': [58.0, 24.5],        // 阿曼湾中央，避开阿曼和伊朗海岸
+    '紅海': [38.0, 20.0],          // 红海中央，避开两岸密集区
+    '亞丁灣': [45.0, 12.5],        // 亚丁湾中央，避开也门和索马里海岸
+    '裏海': [52.0, 41.0],          // 里海中央，避开所有海岸线
+    
+    // 东亚海域
+    '東海': [126.0, 30.0],         // 东海中央，避开中国和日本海岸
+    '南海': [115.0, 12.0],         // 南海中央，远离所有海岸线
+    '黃海': [123.0, 36.0],         // 黄海中央，避开中国和朝鲜半岛海岸
+    '渤海': [120.0, 39.0],         // 渤海中央，避开所有海岸线
+    '日本海': [135.0, 40.0],       // 日本海中央，避开日本和俄罗斯海岸
+    '太平洋': [180.0, 0.0],       // 太平洋中央（国际日期变更线附近）
+    
+    // 欧洲海域
+    '地中海': [18.0, 38.0],        // 地中海中央偏东，避开意大利半岛
+    '黑海': [34.0, 43.0],          // 黑海中央，避开所有海岸线
+    '北海': [3.0, 56.0],           // 北海中央，避开英国和欧洲大陆海岸
+    '波羅的海': [20.0, 58.0],      // 波罗的海中央，避开所有海岸线
+    '大西洋': [-30.0, 30.0],       // 大西洋中央，远离所有大陆
+    
+    // 其他
+    '印度洋': [75.0, -10.0],       // 印度洋中央，远离所有大陆
+    '北冰洋': [0.0, 80.0],         // 北冰洋中央
+    '南冰洋': [0.0, -60.0],        // 南冰洋中央
+};
+
+/**
  * 获取海域标签的偏移量（相对于国家中心点）
+ * 
+ * 改进版：优先使用海洋标签语义中心位置数据库
+ * 如果数据库中有该海域的语义中心，直接使用；否则使用基于国家中心点的偏移
  */
 function getSeaLabelOffset(isoCode, seaName, index, totalSeas) {
+    // 🔧 优先使用海洋标签语义中心位置数据库
+    if (typeof SEA_SEMANTIC_CENTERS !== 'undefined' && SEA_SEMANTIC_CENTERS[seaName]) {
+        const semanticCenter = SEA_SEMANTIC_CENTERS[seaName];
+        console.log(`🌊 [Sea Label] ${seaName}: 使用语义中心位置数据库: [${semanticCenter[0].toFixed(4)}, ${semanticCenter[1].toFixed(4)}]`);
+        // 返回语义中心位置（相对于国家中心点的偏移）
+        // 注意：这个偏移量会在 getAdjacentSeas 中被使用，但最终位置应该直接使用语义中心
+        // 所以这里返回一个标记，让调用者知道应该使用语义中心
+        return {
+            useSemanticCenter: true,
+            semanticCenter: semanticCenter,
+            // 临时偏移量（不会被使用）
+            offset: [0, 0]
+        };
+    }
+    
+    // 回退：使用基于国家中心点的偏移量（旧方法）
     // 根据海域名称和国家位置，计算合适的标签位置
     // 改进版：使用更精确的偏移量，基于实际地理位置
     
@@ -5964,6 +6307,7 @@ function getSeaLabelOffset(isoCode, seaName, index, totalSeas) {
         ];
     }
     
+    // 返回偏移量数组（用于回退方法）
     return seaOffset;
 }
 
@@ -5974,7 +6318,7 @@ function getSeaLabelOffset(isoCode, seaName, index, totalSeas) {
  * @param {number} minDistance - 最小距离（像素），默认50px
  * @returns {boolean} - true表示重叠
  */
-function checkLabelOverlap(newLabelPos, existingLabels, minDistance = 50) {
+function checkLabelOverlap(newLabelPos, existingLabels, minDistance = 100) { // 🔧 增加最小距离到100像素，避免中文标签重叠
     if (!appState.map || !existingLabels || existingLabels.length === 0) {
         return false;
     }
@@ -6119,9 +6463,9 @@ function findNonOverlappingPosition(center, existingLabels, areaId, labelType, m
         return center;
     }
     
-    const spiralRadius = 0.1; // 初始搜索半径（度）
-    const angleStep = Math.PI / 6; // 角度步长（30度）
-    const radiusStep = 0.05; // 半径增长步长
+    const spiralRadius = 0.15; // 🔧 增加初始搜索半径（度），更快找到不重叠位置
+    const angleStep = Math.PI / 8; // 🔧 减小角度步长（22.5度），更密集的搜索
+    const radiusStep = 0.08; // 🔧 增加半径增长步长，更快扩大搜索范围
     
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
         const angle = (attempt * angleStep) % (Math.PI * 2);
@@ -6132,17 +6476,25 @@ function findNonOverlappingPosition(center, existingLabels, areaId, labelType, m
             center[1] + radius * Math.sin(angle)
         ];
         
-        // 检查重叠
-        if (checkLabelOverlap(candidatePos, existingLabels)) {
+        // 🔧 检查重叠（使用更大的最小距离，避免中文标签重叠）
+        if (checkLabelOverlap(candidatePos, existingLabels, 100)) { // 🔧 使用100像素最小距离
             continue;
         }
         
-        // 检查边界
-        if (!isLabelPositionWithinArea(areaId, candidatePos, labelType)) {
-            continue;
+        // 🔧 检查边界（主要区域必须在边界内）
+        // 🔧 但如果边界检查失败，记录警告但继续尝试（可能是数据问题）
+        if (labelType === 'main') {
+            const isWithinArea = isLabelPositionWithinArea(areaId, candidatePos, labelType);
+            if (!isWithinArea) {
+                // 🔧 记录警告，但允许继续尝试（避免因边界检查失败而无法找到位置）
+                if (attempt === 0) {
+                    console.warn(`⚠️ [Label Position] 候选位置不在 ${areaId} 边界内: [${candidatePos[0].toFixed(4)}, ${candidatePos[1].toFixed(4)}]`);
+                }
+                continue;
+            }
         }
         
-        // 检查跨边界
+        // 🔧 检查是否跨越到其他区域（对于所有标签类型）
         if (isPositionCrossingOtherBoundaries(areaId, candidatePos, labelType, existingLabels)) {
             continue;
         }
@@ -6150,6 +6502,8 @@ function findNonOverlappingPosition(center, existingLabels, areaId, labelType, m
         return candidatePos; // 找到合法位置
     }
     
+    // 🔧 如果未找到合法位置，返回原始中心（但记录警告）
+    console.warn(`⚠️ [Label Position] 无法为 ${areaId} 找到不重叠且不跨边界的位置，使用原始中心`);
     return center; // 未找到，返回原始中心
 }
 
@@ -6166,6 +6520,31 @@ function updateCustomChineseLabels() {
         console.log('⚠️ [updateCustomChineseLabels] 没有选中的区域，移除标签层');
         // 如果没有选中的区域，移除标签层
         removeCustomChineseLabels();
+        return;
+    }
+    
+    // 🔧 检查地图是否已加载完成
+    if (!appState.map.isStyleLoaded()) {
+        console.log('⏳ [updateCustomChineseLabels] 地图样式尚未加载完成，等待 style.load...');
+        appState.map.once('style.load', () => {
+            // 地图样式加载完成后，再等待地图完全就绪
+            appState.map.once('idle', () => {
+                setTimeout(() => {
+                    updateCustomChineseLabels();
+                }, 500);
+            });
+        });
+        return;
+    }
+    
+    // 🔧 如果地图正在加载，等待 idle 事件
+    if (!appState.map.loaded()) {
+        console.log('⏳ [updateCustomChineseLabels] 地图尚未完全加载，等待 idle...');
+        appState.map.once('idle', () => {
+            setTimeout(() => {
+                updateCustomChineseLabels();
+            }, 500);
+        });
         return;
     }
     
@@ -6205,68 +6584,37 @@ function updateCustomChineseLabels() {
             
             // 如果有相邻且颜色相同的区域，不添加标签
             if (hasAdjacentSameColor) {
-                console.log(`📍 跳过标签: ${area.name} (与相邻国家颜色相同)`);
+                console.log(`📍 [Label Filter] 跳过标签: ${area.name} (ID: ${area.id}, 与相邻国家颜色相同)`);
                 return false;
             }
             
+            console.log(`✅ [Label Filter] 保留标签: ${area.name} (ID: ${area.id}, 类型: ${area.type})`);
             return true;
         })
         .map(area => {
-            // 获取区域中心点
+            // 🔧 获取区域中心点（使用几何中心，不尝试对齐Mapbox标签）
             const center = getAreaCenter(area);
             if (!center || center.length < 2) {
                 console.warn(`⚠️ 无法获取区域 ${area.name} 的中心点，跳过标签`);
                 return null;
             }
             
-            // 尝试查询 Mapbox 英文标签的位置，对齐到英文标签
+            // 🔧 国家中文标签预设在地理中心（国土中央）
             let finalCenter = center;
             let textAnchor = 'center';
             let textOffset = [0, 0];
 
-            try {
-                // 查询 Mapbox 标签层（country-label, place-label, state-label 等）
-                const labelLayers = ['country-label', 'place-label', 'place-city-label',
-                    'place-state-label', 'place-country-label', 'place-town-label'];
-
-                // 在区域中心点附近查询英文标签
-                // 使用 queryRenderedFeatures 查询当前视图中渲染的标签
-                const centerPoint = appState.map.project(center);
-                const mapboxLabels = appState.map.queryRenderedFeatures(
-                    centerPoint,
-                    {
-                        layers: labelLayers,
-                        radius: 100 // 100像素范围内查找 Mapbox 标签
-                    }
-                );
-
-                if (mapboxLabels.length > 0) {
-                    // 找到最接近的标签
-                    const closestLabel = mapboxLabels[0];
-                    const labelCoords = closestLabel.geometry.coordinates;
-
-                    if (labelCoords && labelCoords.length >= 2) {
-                        // 使用 Mapbox 标签的位置
-                        finalCenter = [labelCoords[0], labelCoords[1]];
-                        console.log(`📍 对齐到 Mapbox 标签: ${area.name} -> [${finalCenter[0].toFixed(4)}, ${finalCenter[1].toFixed(4)}]`);
-
-                        // 获取 Mapbox 标签的对齐方式（如果有）
-                        const labelLayer = appState.map.getLayer(closestLabel.layer.id);
-                        if (labelLayer && labelLayer.layout) {
-                            if (labelLayer.layout['text-anchor']) {
-                                textAnchor = labelLayer.layout['text-anchor'];
-                            }
-                            if (labelLayer.layout['text-offset']) {
-                                const offset = labelLayer.layout['text-offset'];
-                                if (Array.isArray(offset) && offset.length >= 2) {
-                                    textOffset = [offset[0], offset[1]];
-                                }
-                            }
-                        }
-                    }
-                }
-            } catch (error) {
-                console.warn(`⚠️ 查询 Mapbox 标签失败: ${error.message}`);
+            // 🔧 对于使用已知中心点的国家（如伊朗、巴基斯坦），确保标签位置准确
+            // 如果使用了已知中心点数据库，直接使用该位置，不进行额外的位置调整
+            const isUsingKnownCenter = area.type === 'country' && 
+                                      typeof KNOWN_COUNTRY_CENTROIDS !== 'undefined' &&
+                                      KNOWN_COUNTRY_CENTROIDS[area.id];
+            
+            if (isUsingKnownCenter) {
+                console.log(`📍 [Main Label] 使用已知中心点数据库: ${area.name} -> [${finalCenter[0].toFixed(4)}, ${finalCenter[1].toFixed(4)}]`);
+                // 对于已知中心点，直接使用，不进行位置调整（除非有用户拖拽偏移）
+            } else {
+                console.log(`📍 [Main Label] 使用计算的中心点: ${area.name} -> [${finalCenter[0].toFixed(4)}, ${finalCenter[1].toFixed(4)}]`);
             }
 
             // 获取自定义标签位置偏移（如果有，优先级高于 Mapbox 对齐）
@@ -6291,7 +6639,7 @@ function updateCustomChineseLabels() {
                 }
             }
             
-            return {
+            const feature = {
                 type: 'Feature',
                 properties: {
                     name: area.name, // 已经是中文名称
@@ -6307,6 +6655,10 @@ function updateCustomChineseLabels() {
                     coordinates: finalCenter // 使用对齐到 Mapbox 标签或应用偏移后的坐标
                 }
             };
+            
+            console.log(`✅ [Main Label] 创建主要区域标签: ${area.name} (${area.id}) at [${finalCenter[0].toFixed(4)}, ${finalCenter[1].toFixed(4)}]`);
+            
+            return feature;
         })
         .filter(f => f !== null); // 过滤掉null值
     
@@ -6321,28 +6673,124 @@ function updateCustomChineseLabels() {
         );
         
         if (!existingLabel) {
-            // 尝试对齐到 Mapbox 海域标签位置
+            /**
+             * 海洋标签对齐策略（专业版）
+             * 
+             * 优先级：
+             * 1. 优先使用海洋标签语义中心位置数据库（SEA_SEMANTIC_CENTERS）
+             *    - 基于专业地图实践（Natural Earth 风格）
+             *    - 标签落在连续、开阔水域
+             *    - 避开海岸线、岛链、国界密集区
+             * 2. 尝试对齐到 Mapbox 的海洋标签位置（如果可用）
+             * 3. 回退：使用基于国家中心点的偏移计算
+             * 
+             * 策略：
+             * 1. 优先使用语义中心位置数据库
+             * 2. 策略1：查询所有可能的 Mapbox 海洋标签层（500px 范围）
+             * 3. 策略2：如果策略1失败，查询所有标签层并过滤海洋相关标签（800px 范围）
+             * 4. 策略3：如果前两个策略都失败，扩大搜索范围到 1000px
+             * 5. 回退：如果所有策略都失败，使用计算的位置（通过 getSeaLabelOffset 优化）
+             * 
+             * 注意：
+             * - Mapbox 不同地图样式可能使用不同的标签层名称
+             * - queryRenderedFeatures 只能查询已渲染的标签（受缩放级别影响）
+             * - 如果 Mapbox 没有该海域的标签，会使用语义中心位置数据库
+             */
+            // 🔧 优先使用海洋标签语义中心位置数据库
             let finalCenter = sea.center;
             let textAnchor = 'center';
             let textOffset = [0, 0];
+            let mapboxAlignmentSuccess = false;
+            let usingSemanticCenter = false;
 
+            // 检查是否有语义中心位置数据库
+            if (typeof SEA_SEMANTIC_CENTERS !== 'undefined' && SEA_SEMANTIC_CENTERS[sea.name]) {
+                finalCenter = SEA_SEMANTIC_CENTERS[sea.name];
+                usingSemanticCenter = true;
+                console.log(`🌊 [Ocean Label] ${sea.name}: 使用语义中心位置数据库: [${finalCenter[0].toFixed(4)}, ${finalCenter[1].toFixed(4)}]`);
+            }
+
+            // 如果使用了语义中心，仍然尝试对齐到 Mapbox 标签（如果可用，可以微调位置）
+            // 但语义中心位置优先级更高
             try {
-                // 查询 Mapbox 海域/海洋标签层
-                const seaLabelLayers = ['water-name-ocean', 'water-name-sea', 'water-name-lake',
-                    'place-ocean', 'place-sea', 'waterway-label'];
+                // 🔧 扩展的 Mapbox 海域/海洋标签层列表（覆盖不同地图样式）
+                // 不同 Mapbox 样式可能使用不同的层名，尝试所有可能的层名
+                const seaLabelLayers = [
+                    // 标准样式层名
+                    'water-name-ocean', 'water-name-sea', 'water-name-lake',
+                    'place-ocean', 'place-sea', 'waterway-label', 'water-label',
+                    // 海洋标签变体
+                    'marine-label', 'marine-label-small', 'marine-label-medium', 'marine-label-large',
+                    // 其他可能的层名
+                    'ocean-label', 'sea-label', 'lake-label',
+                    'water-name', 'water-name-large', 'water-name-medium', 'water-name-small',
+                    'place-label-water', 'place-label-marine',
+                    // 卫星/地形样式可能的层名
+                    'water-text', 'ocean-text', 'sea-text'
+                ];
 
-                // 在海域中心点附近查询 Mapbox 标签
+                // 🔧 在海域中心点附近查询 Mapbox 标签（使用更大的搜索半径）
                 const centerPoint = appState.map.project(sea.center);
-                const mapboxLabels = appState.map.queryRenderedFeatures(
+                
+                // 策略1: 查询所有可能的海洋标签层
+                let mapboxLabels = appState.map.queryRenderedFeatures(
                     centerPoint,
                     {
                         layers: seaLabelLayers,
-                        radius: 150 // 150像素范围内查找 Mapbox 海域标签
+                        radius: 500 // 500像素范围，提高在海域中央找到标签的成功率
                     }
                 );
 
+                console.log(`🌊 [Ocean Label] ${sea.name}: 策略1查询到 ${mapboxLabels.length} 个 Mapbox 海域标签`);
+
+                // 策略2: 如果策略1失败，尝试查询所有标签层（不指定层名）
+                if (mapboxLabels.length === 0) {
+                    console.log(`🌊 [Ocean Label] ${sea.name}: 策略1未找到标签，尝试策略2（查询所有标签层）`);
+                    const allLabels = appState.map.queryRenderedFeatures(
+                        centerPoint,
+                        { radius: 800 } // 更大的搜索半径
+                    );
+                    
+                    // 过滤出可能是海洋标签的特征（通过属性判断）
+                    mapboxLabels = allLabels.filter(label => {
+                        const props = label.properties || {};
+                        const layerId = label.layer?.id || '';
+                        
+                        // 检查层名是否包含海洋相关关键词
+                        const isWaterLayer = /water|ocean|sea|marine|lake|waterway/i.test(layerId);
+                        
+                        // 检查属性是否包含海洋相关关键词
+                        const hasWaterProperty = props.name && (
+                            /ocean|sea|marine|water|gulf|bay|strait|channel/i.test(props.name) ||
+                            /海|洋|湾|海峡|水道/i.test(props.name)
+                        );
+                        
+                        return isWaterLayer || hasWaterProperty;
+                    });
+                    
+                    console.log(`🌊 [Ocean Label] ${sea.name}: 策略2查询到 ${mapboxLabels.length} 个可能的海洋标签`);
+                }
+
+                // 策略3: 如果前两个策略都失败，尝试在不同缩放级别查询
+                if (mapboxLabels.length === 0) {
+                    console.log(`🌊 [Ocean Label] ${sea.name}: 策略1和2未找到标签，尝试策略3（扩大搜索范围）`);
+                    // 在更大的范围内搜索（1000像素）
+                    const expandedLabels = appState.map.queryRenderedFeatures(
+                        centerPoint,
+                        {
+                            layers: seaLabelLayers,
+                            radius: 1000
+                        }
+                    );
+                    
+                    if (expandedLabels.length > 0) {
+                        mapboxLabels = expandedLabels;
+                        console.log(`🌊 [Ocean Label] ${sea.name}: 策略3查询到 ${mapboxLabels.length} 个 Mapbox 海域标签（扩大范围）`);
+                    }
+                }
+
                 if (mapboxLabels.length > 0) {
-                    // 找到最接近的海域标签
+                    // 🔧 找到最接近的海域标签（Mapbox标签通常在海域中央）
                     let closestLabel = null;
                     let minDistance = Infinity;
 
@@ -6365,11 +6813,18 @@ function updateCustomChineseLabels() {
 
                     if (closestLabel && closestLabel.geometry.coordinates) {
                         const labelCoords = closestLabel.geometry.coordinates;
-                        // 使用 Mapbox 标签的位置
+                        // 🔧 如果使用了语义中心位置，Mapbox 对齐仅用于微调（不覆盖语义中心）
+                        // 否则，使用 Mapbox 标签的位置（通常在海域中央）
+                        if (!usingSemanticCenter) {
                         finalCenter = [labelCoords[0], labelCoords[1]];
-                        console.log(`🌊 对齐到 Mapbox 海域标签: ${sea.name} -> [${finalCenter[0].toFixed(4)}, ${finalCenter[1].toFixed(4)}]`);
+                            mapboxAlignmentSuccess = true;
+                            console.log(`✅ [Ocean Label] ${sea.name}: 成功对齐到 Mapbox 海域标签（距离: ${minDistance.toFixed(1)}px）: [${finalCenter[0].toFixed(4)}, ${finalCenter[1].toFixed(4)}]`);
+                        } else {
+                            console.log(`🌊 [Ocean Label] ${sea.name}: 已使用语义中心位置，Mapbox 标签仅用于参考（距离: ${minDistance.toFixed(1)}px）`);
+                        }
 
                         // 获取 Mapbox 标签的对齐方式（如果有）
+                        try {
                         const labelLayer = appState.map.getLayer(closestLabel.layer.id);
                         if (labelLayer && labelLayer.layout) {
                             if (labelLayer.layout['text-anchor']) {
@@ -6382,10 +6837,18 @@ function updateCustomChineseLabels() {
                                 }
                             }
                         }
+                        } catch (layerError) {
+                            console.warn(`⚠️ [Ocean Label] ${sea.name}: 无法获取 Mapbox 标签层属性:`, layerError.message);
                     }
+                    }
+                } else {
+                    console.log(`🌊 [Ocean Label] ${sea.name}: 所有策略均未找到 Mapbox 标签，使用计算的位置（已通过 getSeaLabelOffset 优化）`);
+                    // 🔧 如果没有找到Mapbox标签，使用计算的位置（sea.center已经通过getSeaLabelOffset优化）
+                    // 位置已经在 sea.center 中通过 getSeaLabelOffset 计算好了
                 }
             } catch (error) {
-                console.warn(`⚠️ 查询 Mapbox 海域标签失败: ${error.message}`);
+                console.warn(`⚠️ [Ocean Label] ${sea.name}: 查询 Mapbox 海域标签失败: ${error.message}`);
+                // 对齐失败时，使用计算的位置（sea.center已经包含偏移）
             }
 
             // 获取自定义标签位置偏移（如果有，优先级高于 Mapbox 对齐）
@@ -6409,6 +6872,8 @@ function updateCustomChineseLabels() {
                     }
                 }
             }
+            
+            console.log(`🌊 [Ocean Label] ${sea.name}: 最终位置 [${finalCenter[0].toFixed(4)}, ${finalCenter[1].toFixed(4)}]`);
             
             labelFeatures.push({
                 type: 'Feature',
@@ -6449,15 +6914,14 @@ function updateCustomChineseLabels() {
             return window.areCountriesAdjacent(area.id, adjCountry.isoCode);
         });
         
-        // 如果只有一个相邻的已填充国家，且颜色明显不同，则显示标签
-        // 如果有多个相邻的已填充国家使用相同颜色，则不显示标签
-        if (adjacentFilledAreas.length > 0) {
-            const colors = new Set(adjacentFilledAreas.map(a => a.color));
-            // 如果所有相邻的已填充国家都使用相同颜色，则不显示标签
-            if (colors.size === 1 && adjacentFilledAreas.length > 1) {
-                shouldSkip = true;
-            }
-        }
+        // 始终显示邻国标签（移除颜色过滤逻辑）
+        // 注释掉原来的过滤逻辑，确保所有邻国标签都显示
+        // if (adjacentFilledAreas.length > 0) {
+        //     const colors = new Set(adjacentFilledAreas.map(a => a.color));
+        //     if (colors.size === 1 && adjacentFilledAreas.length > 1) {
+        //         shouldSkip = true;
+        //     }
+        // }
         
         if (!shouldSkip) {
             // 获取自定义标签位置偏移（如果有）
@@ -6523,6 +6987,8 @@ function updateCustomChineseLabels() {
                 console.warn(`⚠️ 查询邻近国家 Mapbox 标签失败: ${error.message}`);
             }
             
+            console.log(`✅ [Adjacent Label] 创建邻近国家标签: ${adjCountry.name} (${adjCountry.isoCode}) at [${finalCenter[0].toFixed(4)}, ${finalCenter[1].toFixed(4)}]`);
+            
             labelFeatures.push({
                 type: 'Feature',
                 properties: {
@@ -6550,6 +7016,14 @@ function updateCustomChineseLabels() {
     
     console.log(`✅ [updateCustomChineseLabels] 准备创建 ${labelFeatures.length} 个中文标签`);
     
+    // 调试：输出标签详情
+    console.log(`📋 [Label Debug] 标签详情:`);
+    labelFeatures.forEach((feature, index) => {
+        if (feature && feature.properties) {
+            console.log(`   ${index + 1}. ${feature.properties.name} (${feature.properties.labelType || 'unknown'}, areaId: ${feature.properties.areaId})`);
+        }
+    });
+    
     // 添加重叠检测和避免算法：调整所有标签的位置以避免重叠和跨边界
     // 遍历所有标签，检查重叠，如果重叠则调整位置
     for (let i = 0; i < labelFeatures.length; i++) {
@@ -6562,26 +7036,86 @@ function updateCustomChineseLabels() {
         // 获取已处理的标签（在当前标签之前的标签）
         const existingLabels = labelFeatures.slice(0, i);
         
-        // 检查是否与已处理的标签重叠
-        if (checkLabelOverlap(currentPos, existingLabels)) {
+        // 🔧 检查是否与已处理的标签重叠（增加最小距离，避免中文标签重叠）
+        if (checkLabelOverlap(currentPos, existingLabels, 100)) { // 🔧 使用100像素最小距离
             // 如果重叠，使用螺旋搜索算法寻找新位置
             const newPos = findNonOverlappingPosition(
                 originalCenter,
                 existingLabels,
                 areaId,
                 labelType,
-                20
+                40 // 🔧 增加最大尝试次数到40，确保找到不重叠的位置
             );
             
             // 如果找到了新位置，更新标签坐标
             if (newPos && newPos !== currentPos) {
                 currentLabel.geometry.coordinates = newPos;
-                console.log(`📍 调整标签位置避免重叠: ${currentLabel.properties.name} -> [${newPos[0].toFixed(4)}, ${newPos[1].toFixed(4)}]`);
+                console.log(`📍 [Label Position] 调整标签位置避免重叠: ${currentLabel.properties.name} -> [${newPos[0].toFixed(4)}, ${newPos[1].toFixed(4)}]`);
+            } else {
+                console.warn(`⚠️ [Label Position] 无法为 ${currentLabel.properties.name} 找到不重叠的位置`);
             }
         }
         
-        // 检查是否跨越到其他区域边界（即使不重叠也要检查）
-        // 只检查已处理的标签（existingLabels）
+        // 🔧 对于主要区域标签，确保始终在国土内
+        if (labelType === 'main') {
+            const isWithinArea = isLabelPositionWithinArea(areaId, currentPos, labelType);
+            if (!isWithinArea) {
+                console.warn(`⚠️ [Label Position] ${currentLabel.properties.name} 的标签位置不在国土内: [${currentPos[0].toFixed(4)}, ${currentPos[1].toFixed(4)}]`);
+                // 🔧 尝试找到在国土内的位置
+                const newPos = findNonOverlappingPosition(
+                    originalCenter,
+                    existingLabels,
+                    areaId,
+                    labelType,
+                    50 // 🔧 增加最大尝试次数，确保找到在国土内的位置
+                );
+                
+                // 🔧 验证新位置是否在国土内
+                if (newPos && isLabelPositionWithinArea(areaId, newPos, labelType)) {
+                    currentLabel.geometry.coordinates = newPos;
+                    console.log(`📍 [Label Position] 调整 ${currentLabel.properties.name} 到国土内: [${newPos[0].toFixed(4)}, ${newPos[1].toFixed(4)}]`);
+                } else if (newPos && newPos !== currentPos) {
+                    // 即使新位置也不在国土内，至少使用调整后的位置（避免重叠）
+                    currentLabel.geometry.coordinates = newPos;
+                    console.warn(`⚠️ [Label Position] ${currentLabel.properties.name} 调整后位置仍可能不在国土内: [${newPos[0].toFixed(4)}, ${newPos[1].toFixed(4)}]`);
+                } else {
+                    // 如果找不到新位置，使用原始中心（即使可能不在国土内，也比重叠好）
+                    console.warn(`⚠️ [Label Position] 无法为 ${currentLabel.properties.name} 找到在国土内的位置，使用原始中心`);
+                }
+            }
+        }
+        
+        // 🔧 对于主要区域标签，确保始终在国土内
+        if (labelType === 'main') {
+            const isWithinArea = isLabelPositionWithinArea(areaId, currentPos, labelType);
+            if (!isWithinArea) {
+                console.warn(`⚠️ [Label Position] ${currentLabel.properties.name} 的标签位置不在国土内: [${currentPos[0].toFixed(4)}, ${currentPos[1].toFixed(4)}]`);
+                // 🔧 尝试找到在国土内的位置
+                const newPos = findNonOverlappingPosition(
+                    originalCenter,
+                    existingLabels,
+                    areaId,
+                    labelType,
+                    50 // 🔧 增加最大尝试次数，确保找到在国土内的位置
+                );
+                
+                // 🔧 验证新位置是否在国土内
+                if (newPos && isLabelPositionWithinArea(areaId, newPos, labelType)) {
+                    currentLabel.geometry.coordinates = newPos;
+                    console.log(`📍 [Label Position] 调整 ${currentLabel.properties.name} 到国土内: [${newPos[0].toFixed(4)}, ${newPos[1].toFixed(4)}]`);
+                } else if (newPos && newPos !== currentPos) {
+                    // 即使新位置也不在国土内，至少使用调整后的位置（避免重叠）
+                    currentLabel.geometry.coordinates = newPos;
+                    console.warn(`⚠️ [Label Position] ${currentLabel.properties.name} 调整后位置仍可能不在国土内: [${newPos[0].toFixed(4)}, ${newPos[1].toFixed(4)}]`);
+                } else {
+                    // 如果找不到新位置，使用原始中心（即使可能不在国土内，也比重叠好）
+                    console.warn(`⚠️ [Label Position] 无法为 ${currentLabel.properties.name} 找到在国土内的位置，使用原始中心`);
+                }
+            }
+        }
+        
+        // 🔧 检查是否跨越到其他区域边界（即使不重叠也要检查）
+        // 🔧 对于海洋标签，特别检查是否跨区域
         if (isPositionCrossingOtherBoundaries(areaId, currentPos, labelType, existingLabels)) {
             // 如果跨边界，使用螺旋搜索算法寻找新位置
             const newPos = findNonOverlappingPosition(
@@ -6589,13 +7123,17 @@ function updateCustomChineseLabels() {
                 existingLabels,
                 areaId,
                 labelType,
-                20
+                30 // 🔧 增加最大尝试次数，确保找到不跨区域的位置（特别是海洋标签）
             );
             
             // 如果找到了新位置，更新标签坐标
             if (newPos && newPos !== currentPos) {
                 currentLabel.geometry.coordinates = newPos;
-                console.log(`📍 调整标签位置避免跨边界: ${currentLabel.properties.name} -> [${newPos[0].toFixed(4)}, ${newPos[1].toFixed(4)}]`);
+                if (labelType === 'sea') {
+                    console.log(`🌊 [Ocean Label] 调整位置避免跨区域: ${currentLabel.properties.name} -> [${newPos[0].toFixed(4)}, ${newPos[1].toFixed(4)}]`);
+                } else {
+                    console.log(`📍 调整标签位置避免跨边界: ${currentLabel.properties.name} -> [${newPos[0].toFixed(4)}, ${newPos[1].toFixed(4)}]`);
+                }
             }
         }
     }
@@ -6612,6 +7150,8 @@ function updateCustomChineseLabels() {
                 type: 'FeatureCollection',
                 features: labelFeatures
             });
+            
+            console.log(`✅ [Label Update] 已更新标签数据源，包含 ${labelFeatures.length} 个标签`);
             
             // 确保三层格式样式正确应用（可能在更新后被覆盖）
             appState.map.setPaintProperty('custom-chinese-labels', 'text-color', [
@@ -6688,6 +7228,16 @@ function updateCustomChineseLabels() {
             }, 0);
             
             console.log(`✅ 已更新 ${labelFeatures.length} 个中文标签（保留三层格式样式）`);
+            
+            // 验证数据源确实有数据
+            const sourceData = source._data || source._geojson;
+            if (sourceData && sourceData.features) {
+                console.log(`✅ [Label Verify] 数据源验证: 包含 ${sourceData.features.length} 个标签`);
+                const layerVisibility = appState.map.getLayoutProperty('custom-chinese-labels', 'visibility');
+                console.log(`✅ [Label Verify] 图层可见性: ${layerVisibility || 'default (visible)'}`);
+            } else {
+                console.warn('⚠️ [Label Verify] 数据源验证失败: 无法读取标签数据');
+            }
         } else {
             // 数据源或图层不存在，先清理再创建新的
             try {
@@ -6706,6 +7256,8 @@ function updateCustomChineseLabels() {
             }
             
             // 创建新的
+            console.log(`🔧 [Label Create] 创建新的标签层（源或图层不存在）`);
+            console.log(`🔧 [Label Create] 创建数据源，包含 ${labelFeatures.length} 个标签`);
         appState.map.addSource('custom-chinese-labels', {
             type: 'geojson',
             data: {
@@ -6780,6 +7332,21 @@ function updateCustomChineseLabels() {
         setupLabelDragging();
         
         console.log(`✅ 已为 ${labelFeatures.length} 个填充区域添加繁中标签`);
+        
+        // 验证标签层创建成功
+        const createdSource = appState.map.getSource('custom-chinese-labels');
+        const createdLayer = appState.map.getLayer('custom-chinese-labels');
+        if (createdSource && createdLayer) {
+            const createdSourceData = createdSource._data || createdSource._geojson;
+            const featureCount = createdSourceData && createdSourceData.features ? createdSourceData.features.length : 0;
+            const layerVisibility = appState.map.getLayoutProperty('custom-chinese-labels', 'visibility');
+            console.log(`✅ [Label Verify] 新标签层验证成功:`);
+            console.log(`   - 数据源包含 ${featureCount} 个标签`);
+            console.log(`   - 图层可见性: ${layerVisibility || 'default (visible)'}`);
+            console.log(`   - 图层ID: custom-chinese-labels`);
+        } else {
+            console.warn(`⚠️ [Label Verify] 标签层创建验证失败: source=${!!createdSource}, layer=${!!createdLayer}`);
+        }
         }
     } catch (error) {
         console.error('❌ 创建/更新自定义标签失败:', error);
@@ -7634,6 +8201,129 @@ function setupMapTextLabelDragging() {
         console.log('✅ 文字标签拖拽功能已设置（使用 DOM 事件）');
     } catch (error) {
         console.error('❌ 设置文字标签拖拽功能失败:', error);
+    }
+}
+
+/**
+ * 显示 Mapbox 原生中文标签
+ * 隐藏自定义中文标签层，并显示 Mapbox 自己的中文标签
+ */
+function showMapboxChineseLabels() {
+    if (!appState.map) {
+        console.warn('⚠️ [showMapboxChineseLabels] Map 实例不存在');
+        return;
+    }
+
+    console.log('🔍 [showMapboxChineseLabels] 尝试显示 Mapbox 原生中文标签...');
+
+    // 确保自定义标签层被移除或隐藏
+    if (appState.map.getLayer('custom-chinese-labels')) {
+        appState.map.setLayoutProperty('custom-chinese-labels', 'visibility', 'none');
+        console.log('✅ [showMapboxChineseLabels] 已隐藏自定义中文标签层');
+    }
+
+    // 遍历所有图层，查找并显示 Mapbox 的中文标签层
+    const style = appState.map.getStyle();
+    if (style && style.layers) {
+        let shownCount = 0;
+        let hiddenCount = 0;
+        
+        style.layers.forEach(layer => {
+            // 识别 Mapbox 的中文标签层
+            // Mapbox 中文标签通常包含以下特征：
+            // 1. 类型为 symbol
+            // 2. 包含 text-field 属性
+            // 3. text-field 可能包含 {name_zh}, {name_zh-Hans}, {name_zh-Hant}, {name_local} 等
+            // 4. 或者图层 ID 包含 label, name, place, water 等关键词
+            const isMapboxLabel = (
+                layer.type === 'symbol' &&
+                layer.layout &&
+                layer.layout['text-field']
+            );
+            
+            if (isMapboxLabel) {
+                const textField = layer.layout['text-field'];
+                const layerId = layer.id.toLowerCase();
+                
+                // 检查是否是中文标签层
+                // Mapbox 中文标签可能通过以下方式识别：
+                // 1. text-field 包含中文相关的字段
+                // 2. 图层 ID 包含 label, name, place 等关键词
+                // 3. 图层可能被隐藏了（visibility: 'none'）
+                const isChineseLabel = (
+                    (typeof textField === 'string' && (
+                        textField.includes('{name_zh}') ||
+                        textField.includes('{name_zh-Hans}') ||
+                        textField.includes('{name_zh-Hant}') ||
+                        textField.includes('{name_local}') ||
+                        textField.includes('{name:zh}') ||
+                        textField.includes('{name:zh-Hans}') ||
+                        textField.includes('{name:zh-Hant}')
+                    )) ||
+                    (layerId.includes('label') || 
+                     layerId.includes('name') || 
+                     layerId.includes('place') ||
+                     layerId.includes('water') ||
+                     layerId.includes('country') ||
+                     layerId.includes('city') ||
+                     layerId.includes('state') ||
+                     layerId.includes('settlement'))
+                );
+                
+                if (isChineseLabel) {
+                    try {
+                        const currentVisibility = appState.map.getLayoutProperty(layer.id, 'visibility');
+                        
+                        // 如果图层被隐藏，显示它
+                        if (currentVisibility === 'none') {
+                            appState.map.setLayoutProperty(layer.id, 'visibility', 'visible');
+                            shownCount++;
+                            console.log(`✅ [showMapboxChineseLabels] 已显示标签层: ${layer.id}`);
+                        } else if (currentVisibility === 'visible') {
+                            // 已经可见，跳过
+                            console.log(`ℹ️ [showMapboxChineseLabels] 标签层已可见: ${layer.id}`);
+                        } else {
+                            // 未知状态，尝试设置为可见
+                            appState.map.setLayoutProperty(layer.id, 'visibility', 'visible');
+                            shownCount++;
+                            console.log(`✅ [showMapboxChineseLabels] 已设置标签层为可见: ${layer.id}`);
+                        }
+                    } catch (err) {
+                        console.warn(`⚠️ [showMapboxChineseLabels] 无法显示 Mapbox 标签层 ${layer.id}:`, err.message);
+                    }
+                } else {
+                    // 不是中文标签层，检查是否需要隐藏（如果之前被错误隐藏）
+                    try {
+                        const currentVisibility = appState.map.getLayoutProperty(layer.id, 'visibility');
+                        if (currentVisibility === 'none' && (
+                            layerId.includes('label') || 
+                            layerId.includes('name') || 
+                            layerId.includes('place')
+                        )) {
+                            // 可能是被错误隐藏的标签层，尝试恢复
+                            appState.map.setLayoutProperty(layer.id, 'visibility', 'visible');
+                            hiddenCount++;
+                            console.log(`🔄 [showMapboxChineseLabels] 已恢复标签层: ${layer.id}`);
+                        }
+                    } catch (err) {
+                        // 忽略错误
+                    }
+                }
+            }
+        });
+        
+        if (shownCount > 0) {
+            console.log(`✅ [showMapboxChineseLabels] 已显示 ${shownCount} 个 Mapbox 原生中文标签层`);
+        } else {
+            console.warn('⚠️ [showMapboxChineseLabels] 未找到 Mapbox 原生中文标签层可显示');
+            console.log('💡 [showMapboxChineseLabels] 提示：Mapbox 中文标签可能需要特定的地图样式（如 mapbox://styles/mapbox/streets-zh-v1）');
+        }
+        
+        if (hiddenCount > 0) {
+            console.log(`🔄 [showMapboxChineseLabels] 已恢复 ${hiddenCount} 个可能被错误隐藏的标签层`);
+        }
+    } else {
+        console.warn('⚠️ [showMapboxChineseLabels] 无法获取地图样式');
     }
 }
 
@@ -9747,4 +10437,70 @@ window.clearAllMarkers = clearAllMarkers;
 window.setWaterColor = setWaterColor;
 window.updateCustomChineseLabels = updateCustomChineseLabels;
 window.removeCustomChineseLabels = removeCustomChineseLabels;
+window.showMapboxChineseLabels = showMapboxChineseLabels; // 显示 Mapbox 中文标签
+window.KNOWN_COUNTRY_CENTROIDS = KNOWN_COUNTRY_CENTROIDS; // 暴露已知国家中心点数据库，便于调试和扩展
+
+/**
+ * 配置行政区边界线和标签显示
+ * 1. 行政區边界线只显示到最大级别（state，level 1）
+ * 2. 关闭自定义中文标签层
+ * 3. 显示 Mapbox 中文标签
+ */
+function configureAdminBoundariesAndLabels() {
+    // 1. 设置行政区级别为 state（只显示最大级别，level 1）
+    appState.preferredAdminLevel = 'state';
+    console.log('✅ 已设置行政区级别为 state（只显示最大级别）');
+    
+    // 更新 UI 按钮状态（如果存在）
+    const adminLevelGroup = document.getElementById('admin-level-group');
+    if (adminLevelGroup) {
+        const stateBtn = adminLevelGroup.querySelector('.btn-toggle[data-level="state"]');
+        const cityBtn = adminLevelGroup.querySelector('.btn-toggle[data-level="city"]');
+        if (stateBtn) {
+            stateBtn.classList.add('active');
+        }
+        if (cityBtn) {
+            cityBtn.classList.remove('active');
+        }
+    }
+    
+    // 2. 关闭自定义中文标签层
+    removeCustomChineseLabels();
+    console.log('✅ 已关闭自定义中文标签层');
+    
+    // 3. 显示 Mapbox 中文标签
+    // 等待地图样式加载完成后再显示
+    if (!appState.map) {
+        console.warn('⚠️ [configureAdminBoundariesAndLabels] Map 实例不存在');
+        return;
+    }
+    
+    const showLabelsWhenReady = () => {
+        if (appState.map.isStyleLoaded() && appState.map.loaded()) {
+            // 地图样式已加载，立即显示标签
+            setTimeout(() => {
+                showMapboxChineseLabels();
+            }, 500);
+        } else {
+            // 等待地图样式加载完成
+            console.log('⏳ [configureAdminBoundariesAndLabels] 等待地图样式加载完成...');
+            appState.map.once('style.load', () => {
+                console.log('✅ [configureAdminBoundariesAndLabels] 地图样式已加载');
+                appState.map.once('idle', () => {
+                    console.log('✅ [configureAdminBoundariesAndLabels] 地图已就绪');
+                    setTimeout(() => {
+                        showMapboxChineseLabels();
+                    }, 500);
+                });
+            });
+        }
+    };
+    
+    showLabelsWhenReady();
+    
+    showToast('已配置：行政区边界线只显示到最大级别，关闭自定义中文标签，显示 Mapbox 中文标签', 'success', 3000);
+}
+
+// 暴露到全局
+window.configureAdminBoundariesAndLabels = configureAdminBoundariesAndLabels;
 

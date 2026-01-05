@@ -740,8 +740,12 @@ function setupAIResultCheckboxListeners(results) {
                         const color = colorSelector ? colorSelector.value : (area.presetColor || area.suggestedColor || '#6CA7A1');
                         
                         try {
-                            await applyColorToArea(areaId, area.name, areaType, color);
-                            console.log(`✅ [AI Assistant] 已應用區域: ${area.name}`);
+                            if (typeof window.applyColorToArea === 'function') {
+                                await window.applyColorToArea(areaId, area.name, areaType, color);
+                                console.log(`✅ [AI Assistant] 已應用區域: ${area.name}`);
+                            } else {
+                                throw new Error('applyColorToArea function is not available');
+                            }
                         } catch (error) {
                             console.error(`❌ [AI Assistant] 應用區域失敗: ${area.name}`, error);
                             showToast(`應用區域失敗: ${area.name}`, 'error');
@@ -819,8 +823,12 @@ function setupAIResultCheckboxListeners(results) {
             if (areaId) {
                 const newColor = this.value;
                 try {
-                    await applyColorToArea(areaId, area.name, areaType, newColor);
-                    console.log(`✅ [AI Assistant] 已更新區域顏色: ${area.name} -> ${newColor}`);
+                    if (typeof window.applyColorToArea === 'function') {
+                        await window.applyColorToArea(areaId, area.name, areaType, newColor);
+                        console.log(`✅ [AI Assistant] 已更新區域顏色: ${area.name} -> ${newColor}`);
+                    } else {
+                        throw new Error('applyColorToArea function is not available');
+                    }
                 } catch (error) {
                     console.error(`❌ [AI Assistant] 更新區域顏色失敗: ${area.name}`, error);
                 }
@@ -989,7 +997,11 @@ async function applyAIResultsToMap(results) {
                         
                         // Try to apply color - createAreaLayer will handle source loading internally
                         // No need to wait for source to load first
-                        await applyColorToArea(areaId, area.name, area.type, colorToUse);
+                        if (typeof window.applyColorToArea === 'function') {
+                            await window.applyColorToArea(areaId, area.name, area.type, colorToUse);
+                        } else {
+                            throw new Error('applyColorToArea function is not available');
+                        }
                         
                         // 恢复原来的boundaryMode（如果需要）
                         // appState.boundaryMode = originalBoundaryMode;
@@ -1148,15 +1160,47 @@ async function applyAIResultsToMap(results) {
         console.log(`   - window.updateCustomChineseLabels exists: ${!!window.updateCustomChineseLabels}`);
         
         if (typeof window.updateCustomChineseLabels === 'function') {
-            setTimeout(() => {
-                console.log(`🔄 Calling updateCustomChineseLabels()...`);
-                try {
-                    window.updateCustomChineseLabels();
-                    console.log('✅ Updated Chinese labels after AI analysis');
-                } catch (error) {
-                    console.error('❌ Error calling updateCustomChineseLabels:', error);
+            // 🔧 改进：等待地图完全就绪后再更新标签
+            const updateLabels = () => {
+                if (appState && appState.map) {
+                    // 确保地图已加载完成
+                    if (!appState.map.isStyleLoaded()) {
+                        console.log('⏳ [AI Assistant] Waiting for map style to load...');
+                        appState.map.once('style.load', () => {
+                            appState.map.once('idle', updateLabels);
+                        });
+                        return;
+                    }
+                    
+                    // 等待地图 idle 状态
+                    if (appState.map.loaded()) {
+                        appState.map.once('idle', () => {
+                            setTimeout(() => {
+                                console.log(`🔄 [AI Assistant] Calling updateCustomChineseLabels()...`);
+                                try {
+                                    window.updateCustomChineseLabels();
+                                    console.log('✅ [AI Assistant] Updated Chinese labels after AI analysis');
+                                    // Force map repaint to ensure all layers are visible
+                                    appState.map.triggerRepaint();
+                                } catch (error) {
+                                    console.error('❌ [AI Assistant] Error calling updateCustomChineseLabels:', error);
+                                }
+                            }, 500);
+                        });
+                        // 触发一次 repaint 以确保地图进入 idle 状态
+                        appState.map.triggerRepaint();
+                    } else {
+                        // 地图尚未加载，等待加载完成
+                        console.log('⏳ [AI Assistant] Waiting for map to load...');
+                        appState.map.once('load', () => {
+                            appState.map.once('idle', updateLabels);
+                        });
+                    }
                 }
-            }, 1500); // Wait for all areas to be fully rendered (increased to 1.5s)
+            };
+            
+            // 延迟执行，确保所有区域都已创建
+            setTimeout(updateLabels, 1500);
         } else {
             console.warn('⚠️ updateCustomChineseLabels function not found on window object');
         }
@@ -1407,6 +1451,21 @@ async function findAreaIdByName(areaName, areaType) {
             const geocodeUrl = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(areaName)}.json?access_token=${CONFIG.MAPBOX.TOKEN}&types=region,place&limit=1`;
             const response = await fetch(geocodeUrl);
             const data = await response.json();
+            
+            // 🔧 检查 Mapbox API 错误响应
+            if (data.error) {
+                const errorCode = data.error.code;
+                const errorMessage = data.error.message || 'Unknown error';
+                console.error(`❌ [AI Assistant] Mapbox Geocoding API Error (Code ${errorCode}): ${errorMessage}`);
+                
+                // 错误代码 5 通常表示 "Invalid request"
+                if (errorCode === 5) {
+                    console.warn(`⚠️ [AI Assistant] Invalid request for area: ${areaName}`);
+                }
+                
+                // 返回 null，让调用者使用其他方法
+                return null;
+            }
             
             if (data.features && data.features.length > 0) {
                 const feature = data.features[0];

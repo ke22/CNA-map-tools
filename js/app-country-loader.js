@@ -172,20 +172,39 @@ function getCountryAreaName(feature, areaType) {
     const props = feature.properties || {};
     
     if (areaType === 'state') {
+        // 🔧 行政区标签不显示国家名，只返回 state 名称
         // Priority: NL_NAME_1 (local) > NAME_1 (English)
-        return (props.NL_NAME_1 && props.NL_NAME_1 !== 'NA') ? props.NL_NAME_1 :
-               props.NAME_1 || props.name || 'Unknown State';
+        const stateName = (props.NL_NAME_1 && props.NL_NAME_1 !== 'NA') ? props.NL_NAME_1 :
+                         props.NAME_1 || props.name || 'Unknown State';
+        
+        // 如果 stateName 包含国家名（例如 "台灣 - 某省"），只保留省名
+        // 检查是否包含 " - " 分隔符，如果有，取第二部分
+        if (stateName.includes(' - ')) {
+            const parts = stateName.split(' - ');
+            return parts[parts.length - 1]; // 返回最后一部分（省名）
+        }
+        
+        return stateName;
     } else {
+        // 🔧 行政区标签不显示国家名，只返回 city 名称
         // Priority: NL_NAME_2 (local) > NAME_2 (English)
         const name2 = (props.NL_NAME_2 && props.NL_NAME_2 !== 'NA') ? props.NL_NAME_2 :
                       props.NAME_2 || props.name;
-        const name1 = (props.NL_NAME_1 && props.NL_NAME_1 !== 'NA') ? props.NL_NAME_1 :
-                      props.NAME_1;
         
-        if (name2) {
-            return name1 ? `${name1} - ${name2}` : name2;
+        // 如果 name2 包含国家名或省名（例如 "台灣 - 南投縣"），只保留市名
+        // 检查是否包含 " - " 分隔符，如果有，取最后一部分
+        if (name2 && name2.includes(' - ')) {
+            const parts = name2.split(' - ');
+            return parts[parts.length - 1]; // 返回最后一部分（市名）
         }
-        return 'Unknown City';
+        
+        // 如果 name2 不存在，尝试从 name1 获取（但只返回 name2，不包含 name1）
+        if (!name2) {
+            return 'Unknown City';
+        }
+        
+        // 🔧 只返回 city 名称，不包含 state 或 country 名称
+        return name2;
     }
 }
 

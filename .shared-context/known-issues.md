@@ -144,11 +144,19 @@ console.log('Labels:', labelSource._data.features);
 - 实现了中文标签三层格式系统
 - 修复了标签移动后颜色保持问题
 - 建立了 CLAUDE.md 和 shared-context 系统
+- 创建了端口配置文档（参见 `port-configuration.md`）
 
 ### 下一步计划
 1. 完善 Playwright 测试覆盖
 2. 优化 GADM 文件大小
 3. 考虑实现 CI/CD 自动化
+
+---
+
+## 📚 相关文档
+
+- **端口配置**: 查看 `.shared-context/port-configuration.md` 了解端口分配和使用情况
+- **项目规范**: 查看 `CLAUDE.md` 了解开发规范
 
 ---
 

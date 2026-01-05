@@ -45,9 +45,18 @@ export default defineConfig({
 
   /* Use existing server on port 8000 (server-combined.js with GADM support) */
   webServer: {
+<<<<<<< HEAD
     command: 'node server-combined.js',
     url: 'http://localhost:8000',
     reuseExistingServer: true,
     timeout: 30000,
+=======
+    command: process.platform === 'win32' 
+      ? 'set PORT=8000 && node server-combined.js'
+      : 'PORT=8000 node server-combined.js',
+    url: 'http://localhost:8000',
+    reuseExistingServer: !process.env.CI,
+    timeout: 60000, // Increased timeout for server startup
+>>>>>>> 8a6bc0a (feat: 优化中文标签定位和行政区域配置)
   },
 });
