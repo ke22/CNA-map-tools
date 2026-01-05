@@ -5692,7 +5692,7 @@ function getAdjacentCountriesFromGADM(selectedAreas, depth = 1) {
                     if (typeof COUNTRY_CODES !== 'undefined' && COUNTRY_CODES[isoCode]) {
                         const countryInfo = COUNTRY_CODES[isoCode];
                         // 优先使用中文名称
-                        countryName = countryInfo.nameZh || countryInfo.name || countryInfo.nameEn || countryName;
+                        countryName = countryInfo.name || countryInfo.nameEn || countryName;
                     } else {
                         // 如果没有映射表，尝试使用 getAreaName 函数获取（它会处理中文名称转换）
                         if (typeof getAreaName === 'function') {
